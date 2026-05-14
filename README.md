@@ -141,9 +141,8 @@ flowchart TD
 
 | 工具 | 建議版本 |
 |---|---|
-| Docker Desktop | 4.x 以上 |
-| Node.js | 18.x 以上 |
-| npm | 9.x 以上 |
+| Docker Desktop | 4.0+ |
+| Node.js | 18.0.0+ |
 
 ## 本機啟動方式
 
@@ -230,7 +229,7 @@ http://localhost:3001
 
 ## 免費線上 demo：Cloudflare Tunnel
 
-如果只是要給老師或同學短時間 demo，可以不用買 VPS，直接把本機服務暫時公開出去。
+不需要架伺服器，透過 Cloudflare Tunnel 產生一個臨時網址，讓他人可以直接用瀏覽器開啟電腦上跑的系統。
 
 先確認 Docker backend/mysql 已啟動：
 
