@@ -33,8 +33,7 @@ The current system focuses on the following modules:
   - React + Vite + TypeScript + Tailwind CSS
   - Provides the user interface for transcript import, degree audit execution, and result visualization
 
-> **Security Notice**  
-> Please do NOT upload real personal transcripts or sensitive academic records to the demo system. Future improvements will include backend authentication, JWT/session management, role-based access control, and stricter authorization checks.
+> **Security Notice.** Please do NOT upload real personal transcripts or sensitive academic records to the demo system. Future improvements will include backend authentication, JWT/session management, role-based access control, and stricter authorization checks.
 
 
 
@@ -203,7 +202,7 @@ flowchart LR
 
 ## Graduation Requirement Model
 
-The current system adopts a **128-credit graduation structure** and evaluates credits according to course categories.
+The current system adopts a 128-credit graduation structure and evaluates credits according to course categories.
 
 ### Credit Structure
 
