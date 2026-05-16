@@ -435,24 +435,34 @@ export function StudentCoursesPage() {
       <SemesterSummaryStrip summaries={studentProfile?.semesterSummaries} />
       {rows.length ? (
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
-              <tr><th className="px-3 py-2">學年期</th><th className="px-3 py-2">課號</th><th className="px-3 py-2">課名</th><th className="px-3 py-2">學分</th><th className="px-3 py-2">成績/等第</th><th className="px-3 py-2">狀態</th><th className="px-3 py-2">來源</th></tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {rows.map((course) => (
-                <tr key={course.id}>
-                  <td className="px-3 py-2">{course.academic_year_semester}</td>
-                  <td className="px-3 py-2 font-semibold text-navy-800">{course.course_code}</td>
-                  <td className="px-3 py-2">{course.course_name}</td>
-                  <td className="px-3 py-2">{formatCredits(course.credits)}</td>
-                  <td className="px-3 py-2 font-semibold text-navy-900">{formatScoreWithLetter(course.score)}</td>
-                  <td className="px-3 py-2"><StatusBadge value={course.status} /></td>
-                  <td className="px-3 py-2"><StatusBadge value={course.source} /></td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                <tr>
+                  <th className="whitespace-nowrap px-3 py-2">學年期</th>
+                  <th className="whitespace-nowrap px-3 py-2">課號</th>
+                  <th className="whitespace-nowrap px-3 py-2">課名</th>
+                  <th className="whitespace-nowrap px-3 py-2">學分</th>
+                  <th className="whitespace-nowrap px-3 py-2">成績/等第</th>
+                  <th className="whitespace-nowrap px-3 py-2">狀態</th>
+                  <th className="whitespace-nowrap px-3 py-2">來源</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((course) => (
+                  <tr key={course.id}>
+                    <td className="whitespace-nowrap px-3 py-2">{course.academic_year_semester}</td>
+                    <td className="whitespace-nowrap px-3 py-2 font-semibold text-navy-800">{course.course_code}</td>
+                    <td className="whitespace-nowrap px-3 py-2">{course.course_name}</td>
+                    <td className="whitespace-nowrap px-3 py-2">{formatCredits(course.credits)}</td>
+                    <td className="whitespace-nowrap px-3 py-2 font-semibold text-navy-900">{formatScoreWithLetter(course.score)}</td>
+                    <td className="whitespace-nowrap px-3 py-2"><StatusBadge value={course.status} /></td>
+                    <td className="whitespace-nowrap px-3 py-2"><StatusBadge value={course.source} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : !courses.isLoading ? <EmptyState title="尚無修課資料" description="請先匯入 transcript JSON。" /> : null}
     </div>
