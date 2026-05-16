@@ -3,9 +3,9 @@ const path = require("path");
 
 function resolveDataFile(filename) {
   const candidates = [
-    path.resolve(__dirname, "../../../data", filename),
-    path.resolve(__dirname, "../../../../data", filename),
+    path.resolve(__dirname, "../../data", filename),
     path.resolve(process.cwd(), "data", filename),
+    path.resolve(__dirname, "../../../data", filename),
     path.resolve(process.cwd(), "..", "data", filename)
   ];
 
@@ -13,6 +13,7 @@ function resolveDataFile(filename) {
   if (!found) {
     throw new Error(`Data file not found: ${filename}. Tried: ${candidates.join(", ")}`);
   }
+
   return found;
 }
 

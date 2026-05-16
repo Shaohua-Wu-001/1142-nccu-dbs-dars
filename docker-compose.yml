@@ -17,8 +17,8 @@ services:
 
   backend:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: nccu-ams-backend
     ports:
       - "3001:3001"
