@@ -3,10 +3,30 @@ export type UserRole = "student" | "admin";
 export type DemoUser = {
   id: number;
   student_number: string;
+  username: string | null;
   name: string;
   email: string;
   admission_year: number;
   role: UserRole;
+};
+
+export type LoginRequest = {
+  account: string;
+  password: string;
+};
+
+export type RegisterRequest = {
+  student_number: string;
+  username: string;
+  name: string;
+  email: string;
+  password: string;
+  admission_year: number;
+};
+
+export type AuthResponse = {
+  token: string;
+  user: DemoUser;
 };
 
 export type Course = {

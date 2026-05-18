@@ -1,15 +1,30 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "./client";
 import type {
+  AuthResponse,
   AuditHistoryRow,
   AuditResult,
   AuditRunRequest,
   Course,
+  LoginRequest,
   ManualCoursePayload,
   PaginatedRows,
+  RegisterRequest,
   StudentCourse,
   TranscriptImportResult
 } from "../types/api";
+
+export function useLogin() {
+  return useMutation({
+    mutationFn: (payload: LoginRequest) => apiClient.post<AuthResponse>("/api/auth/login", payload)
+  });
+}
+
+export function useRegister() {
+  return useMutation({
+    mutationFn: (payload: RegisterRequest) => apiClient.post<AuthResponse>("/api/auth/register", payload)
+  });
+}
 
 export function useHealth() {
   return useQuery({
