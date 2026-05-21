@@ -12,14 +12,18 @@
     "seed:k6-user": "node src/scripts/seedK6User.js",
     "seed:transcript": "node src/scripts/importDemoTranscript.js",
     "reset:demo": "node src/scripts/resetDemoData.js",
-    "test": "node --test"
+    "test": "NODE_ENV=test node --test"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.5.2",
+    "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.11.5",
+    "nodemailer": "^8.0.7",
     "sequelize": "^6.37.5"
   }
 }

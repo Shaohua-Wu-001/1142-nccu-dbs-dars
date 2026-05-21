@@ -33,7 +33,9 @@ function classifyGeneralCourse(studentCourse, generalCourseMap) {
   const code = normalizeCourseCode(studentCourse.course_code);
   const catalogCourse = generalCourseMap.get(code);
   const remark = String(studentCourse.remark || "");
-  const sourceCategory = String(catalogCourse?.category || remark || "");
+  const manualCategory = String(studentCourse.course_category || "");
+  // For manual courses: prefer course_category over remark for classification
+  const sourceCategory = String(catalogCourse?.category || manualCategory || remark || "");
   const categoryBuckets = bucketsFromText(sourceCategory);
   const buckets = [...new Set(categoryBuckets)];
 
@@ -48,7 +50,7 @@ function classifyGeneralCourse(studentCourse, generalCourseMap) {
     credits: toNumber(studentCourse.credits),
     category: sourceCategory || "通識",
     buckets,
-    isCore: catalogCourse?.is_core === true || catalogCourse?.is_core === 1 || catalogCourse?.is_core === "1"
+    isCore: catalogCourse?.is_core === true || catalogCourse?.is_core === 1 || catalogCourse?.is_core === "1" || /核心/.test(sourceCategory)
   };
 }
 

@@ -1,7 +1,7 @@
-import { ChangeEvent, type ReactNode, useMemo, useState } from "react";
+import { ChangeEvent, type FormEvent, type MouseEvent, type ReactNode, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Award, BarChart3, BookOpen, ChevronDown, ClipboardCheck, Download, ExternalLink, FileInput, GraduationCap, History, Info, Sparkles } from "lucide-react";
-import { useAuditHistory, useAuditHistoryDetail, useImportTranscript, useRunAudit, useStudentCourses } from "../api/hooks";
+import { ArrowRight, Award, BarChart3, BookOpen, Check, ChevronDown, ClipboardCheck, Download, ExternalLink, FileInput, GraduationCap, History, Info, Sparkles, Trash2 } from "lucide-react";
+import { useAuditHistory, useAuditHistoryDetail, useDeleteAuditHistory, useImportTranscript, useLatestAuditResult, useRunAudit, useStudentCourses, useUnresolvedCourses, useUpdateAuditHistoryName } from "../api/hooks";
 import { AuditResultView } from "../components/AuditResultView";
 import { MetricTile } from "../components/MetricTile";
 import { PageHeader } from "../components/PageHeader";
@@ -93,11 +93,11 @@ function TrendChartCard({ title, meta, ariaLabel, values, valueLabel, lineColor,
         <p className="text-[11px] font-bold text-slate-500 sm:text-sm">{meta}</p>
       </div>
       <div className="relative w-full overflow-hidden">
-        <svg 
-          className="h-auto w-full" 
-          viewBox={`0 0 ${chart.width} ${chart.height}`} 
+        <svg
+          className="h-auto w-full"
+          viewBox={`0 0 ${chart.width} ${chart.height}`}
           preserveAspectRatio="xMidYMid meet"
-          role="img" 
+          role="img"
           aria-label={ariaLabel}
         >
           {[chart.top, (chart.top + chart.bottom) / 2, chart.bottom].map((y) => (
@@ -156,7 +156,7 @@ function SemesterTrendChart({ summaries }: { summaries: SemesterAcademicSummary[
   const max = Math.max(...scores);
   const min = Math.min(...scores);
   const scoreData = data.map((item) => ({ label: semesterLabel(item.summary), value: item.score, display: item.score.toFixed(1) }));
-  
+
   const rankData = data
     .filter((item): item is typeof item & { rankPerformance: number } => item.rankPerformance !== null)
     .map((item) => ({
@@ -168,7 +168,7 @@ function SemesterTrendChart({ summaries }: { summaries: SemesterAcademicSummary[
   const firstRank = rankData[0];
   const lastRank = rankData[rankData.length - 1];
   const improvement = rankData.length >= 2 ? lastRank.value - firstRank.value : 0;
-  
+
   let rankTrendText = "排名資料不足";
   if (rankData.length >= 2) {
     const absDiff = Math.abs(improvement).toFixed(1);
@@ -200,7 +200,7 @@ function InfoTip({ label, text }: { label: string; text: string }) {
       >
         <Info className="h-3.5 w-3.5" />
       </button>
-      <span className="pointer-events-none absolute left-1/2 top-7 z-20 hidden w-72 -translate-x-1/2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold leading-5 text-slate-600 shadow-xl shadow-blue-950/10 group-hover:block">
+      <span className="pointer-events-none absolute left-0 top-7 z-[60] hidden w-72 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold leading-5 text-slate-600 shadow-xl shadow-blue-950/10 group-hover:block">
         {text}
       </span>
     </span>
@@ -254,7 +254,7 @@ function SemesterSummaryStrip({ summaries }: { summaries?: SemesterAcademicSumma
 
 export function StudentDashboard() {
   const { currentUser, studentProfile } = useAppState();
-  const history = useAuditHistory(currentUser.id);
+  const history = useAuditHistory(currentUser.id, { visibleToStudent: true });
   const studentName = studentProfile?.studentName || currentUser.name;
   const studentNumber = studentProfile?.studentNumber || currentUser.student_number;
   const latestAudit = useMemo(() => (history.data?.rows || []).reduce((current, row) => {
@@ -480,7 +480,11 @@ export function StudentCoursesPage() {
 
 export function AuditRunPage() {
   const { currentUser, setLastAuditResult } = useAppState();
-  const [academicYear, setAcademicYear] = useState("111");
+  const validYears = ["111", "112", "113", "114"];
+  const defaultYear = validYears.includes(String(currentUser.admission_year))
+    ? String(currentUser.admission_year)
+    : "111";
+  const [academicYear, setAcademicYear] = useState(defaultYear);
   const [includeInProgress, setIncludeInProgress] = useState(false);
   const [saveResult, setSaveResult] = useState(true);
   const mutation = useRunAudit();
@@ -498,7 +502,7 @@ export function AuditRunPage() {
   return (
     <div>
       <PageHeader title="執行畢業審核" description="正式結果只採計已通過課程；修課中課程只會出現在預估結果。" />
-      <div className="max-w-xl rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="w-full rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-4">
           <label className="text-sm font-semibold text-slate-700">學年度
             <InfoTip label="學年度說明" text="依你的入學年度或適用畢業規則年度選擇；例如 111 入學就選 111。" />
@@ -530,11 +534,28 @@ export function AuditRunPage() {
 }
 
 export function AuditResultPage() {
-  const { lastAuditResult, studentProfile } = useAppState();
+  const { lastAuditResult, studentProfile, currentUser } = useAppState();
+  const latestAudit = useLatestAuditResult(currentUser.id);
+  const unresolved = useUnresolvedCourses(currentUser.id);
+  const latestRow = latestAudit.data ?? null;
+  const latestSavedResult = latestRow?.result_json ?? null;
+  const result = useMemo(() => {
+    if (!latestSavedResult) return lastAuditResult;
+    if (!lastAuditResult) return latestSavedResult;
+    if (lastAuditResult.saved === false) return lastAuditResult;
+
+    const lastAuditId = lastAuditResult.auditId ?? null;
+    if (!lastAuditId) return latestSavedResult;
+    return latestRow && latestRow.id >= lastAuditId ? latestSavedResult : lastAuditResult;
+  }, [lastAuditResult, latestRow, latestSavedResult]);
+  const isLoading = latestAudit.isLoading;
+
   return (
     <div>
       <PageHeader title="畢業審核結果" description="依後端 audit engine 回傳資料呈現，不顯示不存在的 GPA 或登入權限指標。" />
-      {lastAuditResult ? <AuditResultView result={lastAuditResult} studentProfile={studentProfile} /> : <EmptyState title="尚未執行審核" description="請先前往執行畢業審核頁。" />}
+      {isLoading ? <LoadingState /> : null}
+      {!isLoading && result ? <AuditResultView result={result} studentProfile={studentProfile} unresolvedCourses={unresolved.data?.rows ?? []} /> : null}
+      {!isLoading && !result ? <EmptyState title="尚未執行審核" description="請先前往執行畢業審核頁。" /> : null}
     </div>
   );
 }
@@ -542,10 +563,30 @@ export function AuditResultPage() {
 export function AuditHistoryPage() {
   const { currentUser, studentProfile } = useAppState();
   const [selectedAuditId, setSelectedAuditId] = useState<number | null>(null);
-  const history = useAuditHistory(currentUser.id);
+  const [editingNameById, setEditingNameById] = useState<Record<number, string>>({});
+  const history = useAuditHistory(currentUser.id, { visibleToStudent: true });
+  const deleteAudit = useDeleteAuditHistory(currentUser.id);
+  const updateAuditName = useUpdateAuditHistoryName(currentUser.id);
   const detail = useAuditHistoryDetail(selectedAuditId);
   const selectedRow = history.data?.rows.find((row) => row.id === selectedAuditId);
   const selectedResult = selectedRow?.result_json || detail.data?.result_json || null;
+
+  function handleDelete(event: MouseEvent<HTMLButtonElement>, id: number) {
+    event.stopPropagation();
+    if (!confirm(`確定要刪除 Audit #${id} 嗎？`)) return;
+    deleteAudit.mutate(id, {
+      onSuccess: () => {
+        setSelectedAuditId((current) => (current === id ? null : current));
+      }
+    });
+  }
+
+  function handleNameSubmit(event: FormEvent<HTMLFormElement>, rowId: number) {
+    event.preventDefault();
+    const fallback = history.data?.rows.find((row) => row.id === rowId)?.audit_name ?? "";
+    const auditName = editingNameById[rowId] ?? fallback;
+    updateAuditName.mutate({ id: rowId, auditName });
+  }
 
   return (
     <div>
@@ -554,26 +595,60 @@ export function AuditHistoryPage() {
       {history.error ? <ErrorState message={history.error.message} /> : null}
       {history.data?.rows.length ? (
         <div className="grid gap-3">
+          {deleteAudit.error ? <ErrorState message={deleteAudit.error.message} /> : null}
+          {updateAuditName.error ? <ErrorState message={updateAuditName.error.message} /> : null}
           {history.data.rows.map((row) => (
             <div className="rounded-lg border border-slate-200 bg-white shadow-sm" key={row.id}>
-              <button
-                className={`flex w-full flex-col gap-3 p-4 text-left transition md:flex-row md:items-center md:justify-between ${selectedAuditId === row.id ? "bg-blue-50/60" : "hover:bg-slate-50"}`}
-                onClick={() => setSelectedAuditId((current) => (current === row.id ? null : row.id))}
-                type="button"
-              >
-                <div>
-                  <p className="font-bold text-navy-900">Audit #{row.id}</p>
+              <div className={`flex flex-col gap-3 p-4 transition md:flex-row md:items-center md:justify-between ${selectedAuditId === row.id ? "bg-blue-50/60" : ""}`}>
+                <button
+                  className="min-w-0 flex-1 text-left"
+                  onClick={() => setSelectedAuditId((current) => (current === row.id ? null : row.id))}
+                  type="button"
+                >
+                  <p className="font-bold text-navy-900">{row.audit_name || `Audit #${row.id}`}</p>
                   <p className="text-sm text-slate-500">{new Date(row.created_at).toLocaleString()}</p>
+                </button>
+                <div className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-700 md:justify-end">
+                  <form className="flex min-w-[220px] items-center gap-2" onSubmit={(event) => handleNameSubmit(event, row.id)}>
+                    <input
+                      className="h-9 w-44 rounded-md border border-slate-200 bg-white px-3 text-xs font-bold text-navy-900 outline-none placeholder:text-slate-400 focus:border-navy-400 focus:ring-2 focus:ring-blue-100"
+                      maxLength={120}
+                      onChange={(event) => setEditingNameById((current) => ({ ...current, [row.id]: event.target.value }))}
+                      placeholder={`Audit #${row.id}`}
+                      value={editingNameById[row.id] ?? row.audit_name ?? ""}
+                    />
+                    <button
+                      className="inline-flex h-9 items-center gap-1 rounded-md border border-emerald-100 bg-emerald-50 px-2.5 text-xs font-black text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+                      disabled={updateAuditName.isPending}
+                      type="submit"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      儲存
+                    </button>
+                  </form>
+                  <button
+                    className="inline-flex items-center gap-4 text-left transition hover:text-navy-900"
+                    onClick={() => setSelectedAuditId((current) => (current === row.id ? null : row.id))}
+                    type="button"
+                  >
+                    <span>採計 {formatCredits(row.total_credits_earned)} / {formatCredits(row.total_required_credits)}</span>
+                    <span>{formatCredits(row.progress_percentage)}%</span>
+                    <span className="inline-flex items-center gap-1 text-navy-800">
+                      {selectedAuditId === row.id ? "收合結果" : "查看結果"}
+                      <ChevronDown className={`h-4 w-4 transition ${selectedAuditId === row.id ? "rotate-180" : ""}`} />
+                    </span>
+                  </button>
+                  <button
+                    className="inline-flex items-center gap-1 rounded-md border border-red-100 bg-white px-2.5 py-1.5 text-xs font-black text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                    disabled={deleteAudit.isPending}
+                    onClick={(event) => handleDelete(event, row.id)}
+                    type="button"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    刪除
+                  </button>
                 </div>
-                <div className="flex items-center gap-6 text-sm font-semibold text-slate-700">
-                  <span>採計 {formatCredits(row.total_credits_earned)} / {formatCredits(row.total_required_credits)}</span>
-                  <span>{formatCredits(row.progress_percentage)}%</span>
-                  <span className="inline-flex items-center gap-1 text-navy-800">
-                    {selectedAuditId === row.id ? "收合結果" : "查看結果"}
-                    <ChevronDown className={`h-4 w-4 transition ${selectedAuditId === row.id ? "rotate-180" : ""}`} />
-                  </span>
-                </div>
-              </button>
+              </div>
               {selectedAuditId === row.id ? (
                 <div className="border-t border-slate-200 p-4">
                   {detail.isLoading && !row.result_json ? <LoadingState label="載入審核結果" /> : null}

@@ -37,7 +37,7 @@ The current system focuses on the following modules:
   - React + Vite + TypeScript + Tailwind CSS
   - Provides the user interface for transcript import, degree audit execution, and result visualization
 
-> **Security Notice.** Please do NOT upload real personal transcripts or sensitive academic records to the demo system. Future improvements will include backend authentication, JWT/session management, role-based access control, and stricter authorization checks.
+> **Security Notice.** The system uses JWT-based authentication and backend role/owner authorization for student transcript, audit, and admin APIs. Because this remains a course/demo deployment, please still avoid uploading real sensitive academic records unless the deployment environment, secrets, database access, and transport security have been reviewed.
 
 
 
@@ -64,6 +64,7 @@ Container:  Docker Compose
 ├── frontend/               # React + Vite frontend application
 ├── docs/                   # API docs, backend design, assumptions, and performance reports
 ├── performance/            # k6 load testing scripts
+├── .env.example            # Docker Compose environment template
 ├── docker-compose.yml      # Local Docker Compose setup: MySQL + backend
 ├── .env.example            # Example environment variables for local Docker Compose
 ├── requirement.txt         # System and functional requirements
@@ -249,21 +250,22 @@ For **Core General Education**, the system explicitly lists the core-domain cour
 | Docker Desktop | 4.0+ |
 | Node.js | 18.0.0+ |
 | npm | 9.0+ |
+| k6 | Optional; only required for load testing |
 | cloudflared | Optional; only required for Cloudflare Tunnel demos |
 
 
 
 ## Quick Start
 
-### 1. Create Backend Environment Variables
+### 1. Create Docker Compose Environment Variables
 
 ```bash
-cp backend/.env.example backend/.env
+cp .env.example .env
 ```
 
-Open `backend/.env` and configure the actual database username and password.
+Open the root `.env` file and configure the actual database password, JWT secret, admin registration secret, frontend URL, and email settings. Email settings are required only if you want forgot-password emails to be delivered.
 
-Also make sure the MySQL configuration in `docker-compose.yml` is consistent with `backend/.env`.
+Docker Compose reads the root `.env` file next to `docker-compose.yml`. Use `backend/.env.example` only when running the backend directly outside Docker Compose, such as `cd backend && npm run dev`.
 
 
 
@@ -311,6 +313,14 @@ docker compose exec backend npm run seed
 docker compose exec backend npm run seed:transcript
 docker compose exec backend npm run seed:k6-user
 ```
+
+Seeded credentials:
+
+| Role | Account | Password |
+|---|---|---|
+| Student demo | `demo001` | `demo1234` |
+| Admin demo | `admin` | `admin1234` |
+| k6 flow user | `k6demo` | `k6demo1234` |
 
 To reset demo data:
 
@@ -392,6 +402,30 @@ https://xxxx.trycloudflare.com
 
 ## Common API Endpoints
 
+Endpoints under `/api/transcripts`, `/api/student-courses`, `/api/audit`, `/api/admin`, and authenticated profile/password routes require a JWT Bearer token. `/api/health`, `/api/courses`, `/api/curriculums`, login, registration, password-reset request, and password-reset token endpoints are public.
+
+Login first and reuse the returned token:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:3001/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"account":"demo001","password":"demo1234"}' \
+  | node -e 'let data="";process.stdin.on("data",c=>data+=c);process.stdin.on("end",()=>console.log(JSON.parse(data).token));')
+
+DEMO_USER_ID=$(curl -s http://localhost:3001/api/auth/me \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e 'let data="";process.stdin.on("data",c=>data+=c);process.stdin.on("end",()=>console.log(JSON.parse(data).user.id));')
+```
+
+For admin-only APIs, login as the seeded admin:
+
+```bash
+ADMIN_TOKEN=$(curl -s -X POST http://localhost:3001/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"account":"admin","password":"admin1234"}' \
+  | node -e 'let data="";process.stdin.on("data",c=>data+=c);process.stdin.on("end",()=>console.log(JSON.parse(data).token));')
+```
+
 ### Health Check
 
 ```bash
@@ -420,7 +454,8 @@ then creates records in transcript_imports and student_courses.
 ```bash
 curl -X POST http://localhost:3001/api/audit/run \
   -H 'Content-Type: application/json' \
-  -d '{"userId":1,"academicYear":"111","includeInProgress":false,"saveResult":true}'
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{\"userId\":${DEMO_USER_ID},\"academicYear\":\"111\",\"includeInProgress\":false,\"saveResult\":true}"
 ```
 
 | Parameter | Type | Description |
@@ -433,16 +468,18 @@ curl -X POST http://localhost:3001/api/audit/run \
 
 ### Query Audit History
 
-```http
-GET /api/audit/history?userId=1&limit=20
+```bash
+curl "http://localhost:3001/api/audit/history?userId=${DEMO_USER_ID}&limit=20" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 
 
 ### Query Unresolved Courses
 
-```http
-GET /api/student-courses/unresolved?userId=1
+```bash
+curl "http://localhost:3001/api/student-courses/unresolved?userId=${DEMO_USER_ID}" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 
@@ -452,6 +489,8 @@ GET /api/student-courses/unresolved?userId=1
 ```http
 POST /api/admin/manual-courses
 ```
+
+This endpoint requires an admin token.
 
 Purpose:
 
@@ -474,6 +513,7 @@ or approved substitute course records.
 | `/student/audit/run` | Run degree audit |
 | `/student/audit/result` | View audit result |
 | `/student/audit/history` | View audit history |
+| `/student/profile` | Edit profile and password |
 
 
 
@@ -482,11 +522,22 @@ or approved substitute course records.
 | Route | Description |
 |---|---|
 | `/admin` | Admin dashboard |
+| `/admin/students` | Review student accounts, upload status, unresolved courses, and full transcripts |
 | `/admin/unresolved` | Review unresolved courses |
 | `/admin/manual-courses` | Create manual course adjustments |
-| `/admin/courses` | Manage course data |
-| `/admin/requirements` | Manage graduation requirements |
+| `/admin/courses` | Query course data |
+| `/admin/requirements` | View graduation requirements |
 | `/admin/audit-history` | View audit records |
+| `/admin/profile` | Edit profile and password |
+
+### Auth Routes
+
+| Route | Description |
+|---|---|
+| `/login` | Login |
+| `/register` | Register student or admin account |
+| `/forgot-password` | Request password reset email |
+| `/reset-password` | Reset password with email token |
 
 
 ## Testing and Validation
@@ -535,6 +586,8 @@ curl 'http://localhost:3001/api/curriculums/113/requirements'
 k6 run performance/k6-audit-test.js
 ```
 
+The k6 script logs in with seeded users before calling protected APIs and derives the required user ids from the login response. Defaults are `demo001` / `demo1234` for browsing and audit checks, and `k6demo` / `k6demo1234` for the full transcript-import flow.
+
 
 
 ## Command Reference
@@ -571,7 +624,7 @@ This project is developed as a course final project and is intended for academic
 - 後端：Express API + Sequelize + MySQL，負責資料匯入、規則計算、審核結果儲存。
 - 前端：React + Vite + TypeScript + Tailwind CSS，負責操作介面與結果呈現。
 
-> 注意：目前登入/註冊是前端展示流程，不是正式帳號認證系統，請勿輕易上傳個人成績單上去，以免個資洩漏。本團隊未來會再補後端 auth、JWT/session、角色權限檢查。
+> 注意：目前系統已使用 JWT 登入驗證，並在後端對學生 transcript、audit 與管理員 API 執行角色與資料擁有者權限檢查。此專案仍屬課程/demo 部署，若要上傳真實個人成績資料，請先確認部署環境、金鑰、資料庫存取、HTTPS 與個資處理流程都已完成審查。
 
 ## 技術架構
 
@@ -596,6 +649,7 @@ Container：Docker Compose
 ├── frontend/               # React + Vite 前端
 ├── docs/                   # API、後端設計、假設、效能報告
 ├── performance/            # k6 壓測腳本
+├── .env.example            # Docker Compose 環境變數範本
 ├── docker-compose.yml      # 本機 Docker Compose：MySQL + backend
 ├── .env.example            # 本機環境變數範例
 ├── requirement.txt         # 系統需求與功能需求清單
@@ -764,19 +818,20 @@ flowchart LR
 | Docker Desktop | 4.0+ |
 | Node.js | 18.0.0+ |
 | npm | 9.0+ |
+| k6 | 選用，僅壓力測試需要 |
 | cloudflared | 選用，僅 Cloudflare Tunnel demo 需要 |
 
 ## 快速啟動
 
-### 1. 建立後端環境變數
+### 1. 建立 Docker Compose 環境變數
 
 ```bash
-cp backend/.env.example backend/.env
+cp .env.example .env
 ```
 
-請開啟 `backend/.env`，填入實際資料庫帳號與密碼。
+請開啟專案根目錄 `.env`，填入實際資料庫密碼、JWT secret、管理員註冊密鑰、前端網址與寄信設定。寄信設定只有在需要使用忘記密碼寄信功能時才是必要的。
 
-同時確認 `docker-compose.yml` 中的 MySQL 設定與 `.env` 一致。
+Docker Compose 會讀取與 `docker-compose.yml` 同層的根目錄 `.env`。`backend/.env.example` 只供不透過 Docker Compose、直接執行後端時參考，例如 `cd backend && npm run dev`。
 
 ### 2. 啟動後端與 MySQL
 
@@ -820,6 +875,14 @@ docker compose exec backend npm run seed
 docker compose exec backend npm run seed:transcript
 docker compose exec backend npm run seed:k6-user
 ```
+
+Seed 後可用帳號：
+
+| 身份 | 帳號 | 密碼 |
+|---|---|---|
+| 學生 demo | `demo001` | `demo1234` |
+| 管理員 demo | `admin` | `admin1234` |
+| k6 測試使用者 | `k6demo` | `k6demo1234` |
 
 若需要重設 demo 資料：
 
@@ -886,6 +949,30 @@ https://xxxx.trycloudflare.com
 
 ## 常用 API
 
+`/api/transcripts`、`/api/student-courses`、`/api/audit`、`/api/admin` 以及登入後的個人資料/密碼 API 都需要 JWT Bearer token。`/api/health`、`/api/courses`、`/api/curriculums`、登入、註冊、申請重設密碼與使用 token 重設密碼 API 可公開呼叫。
+
+請先登入並重用回傳的 token：
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:3001/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"account":"demo001","password":"demo1234"}' \
+  | node -e 'let data="";process.stdin.on("data",c=>data+=c);process.stdin.on("end",()=>console.log(JSON.parse(data).token));')
+
+DEMO_USER_ID=$(curl -s http://localhost:3001/api/auth/me \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e 'let data="";process.stdin.on("data",c=>data+=c);process.stdin.on("end",()=>console.log(JSON.parse(data).user.id));')
+```
+
+管理員限定 API 請改用 seeded admin 登入：
+
+```bash
+ADMIN_TOKEN=$(curl -s -X POST http://localhost:3001/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"account":"admin","password":"admin1234"}' \
+  | node -e 'let data="";process.stdin.on("data",c=>data+=c);process.stdin.on("end",()=>console.log(JSON.parse(data).token));')
+```
+
 ### 基礎檢查
 
 ```bash
@@ -910,7 +997,8 @@ POST /api/transcripts/import
 ```bash
 curl -X POST http://localhost:3001/api/audit/run \
   -H 'Content-Type: application/json' \
-  -d '{"userId":1,"academicYear":"111","includeInProgress":false,"saveResult":true}'
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{\"userId\":${DEMO_USER_ID},\"academicYear\":\"111\",\"includeInProgress\":false,\"saveResult\":true}"
 ```
 
 | 參數 | 型別 | 說明 |
@@ -922,13 +1010,15 @@ curl -X POST http://localhost:3001/api/audit/run \
 
 ### 查詢審核歷史
 
-```http
-GET /api/audit/history?userId=1&limit=20
+```bash
+curl "http://localhost:3001/api/audit/history?userId=${DEMO_USER_ID}&limit=20" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 ### 查詢待確認課程
 
-```http
-GET /api/student-courses/unresolved?userId=1
+```bash
+curl "http://localhost:3001/api/student-courses/unresolved?userId=${DEMO_USER_ID}" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### 建立人工調整
@@ -936,6 +1026,8 @@ GET /api/student-courses/unresolved?userId=1
 ```http
 POST /api/admin/manual-courses
 ```
+
+此 API 需要管理員 token。
 
 用途：
 
@@ -954,17 +1046,29 @@ POST /api/admin/manual-courses
 | `/student/audit/run` | 執行畢業審核 |
 | `/student/audit/result` | 查看審核結果 |
 | `/student/audit/history` | 查看歷史審核紀錄 |
+| `/student/profile` | 修改個人資料與密碼 |
 
 ### 管理員端
 
 | 頁面 | 說明 |
 |---|---|
 | `/admin` | 管理員首頁 |
+| `/admin/students` | 查看學生帳號、上傳狀態、待確認課程與完整成績單 |
 | `/admin/unresolved` | 查看待確認課程 |
 | `/admin/manual-courses` | 建立人工調整課程 |
-| `/admin/courses` | 管理課程資料 |
-| `/admin/requirements` | 管理畢業規則 |
+| `/admin/courses` | 查詢課程資料 |
+| `/admin/requirements` | 查看畢業規則 |
 | `/admin/audit-history` | 查看審核紀錄 |
+| `/admin/profile` | 修改個人資料與密碼 |
+
+### 登入與帳號頁面
+
+| 頁面 | 說明 |
+|---|---|
+| `/login` | 登入 |
+| `/register` | 註冊學生或管理員帳號 |
+| `/forgot-password` | 申請密碼重設信 |
+| `/reset-password` | 使用信件 token 重設密碼 |
 
 ## 測試與驗證
 
@@ -1003,6 +1107,8 @@ curl 'http://localhost:3001/api/curriculums/113/requirements'
 ```bash
 k6 run performance/k6-audit-test.js
 ```
+
+k6 腳本會先登入 seeded users、從登入回應取得實際 user id，再呼叫 protected APIs。預設瀏覽與審核檢查使用 `demo001` / `demo1234`，完整匯入流程使用 `k6demo` / `k6demo1234`。
 
 ## 專案啟動指令總覽
 

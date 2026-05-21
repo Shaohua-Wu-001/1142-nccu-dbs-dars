@@ -5,8 +5,8 @@ import { AuditRunPage, StudentCoursesPage, StudentDashboard, StudentImportPage }
 import type { StudentCourse } from "../types/api";
 
 const studentProfile = {
-  studentName: "陳柏澔",
-  studentNumber: "111302020",
+  studentName: "Demo Student",
+  studentNumber: "DEMO001",
   major: "金融學系",
   doubleMajor: "統計學系",
   averageScore: "94.55",
@@ -37,7 +37,6 @@ const studentCourses: StudentCourse[] = [
     user_id: 1,
     course_code: "304835001",
     course_name: "統計機器學習",
-    course_english_name: "Statistical Machine Learning",
     credits: "3",
     department: null,
     course_category: null,
@@ -60,7 +59,7 @@ const studentCourses: StudentCourse[] = [
 
 vi.mock("../state/AppState", () => ({
   useAppState: () => ({
-    currentUser: { id: 1, name: "學生使用者", student_number: "111302020", admission_year: 111, email: "demo@nccu.edu.tw", role: "student" },
+    currentUser: { id: 1, name: "學生使用者", student_number: "DEMO001", admission_year: 111, email: "demo@nccu.edu.tw", role: "student" },
     studentProfile,
     setStudentProfile: vi.fn(),
     setLastAuditResult: vi.fn()
@@ -69,8 +68,8 @@ vi.mock("../state/AppState", () => ({
 
 vi.mock("../api/hooks", () => ({
   useAuditHistory: () => ({ data: { rows: [] }, isLoading: false, error: null }),
-  useAuditHistoryDetail: () => ({ data: null, isLoading: false, error: null }),
   useImportTranscript: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }),
+  useLatestAuditResult: () => ({ data: null, isLoading: false, error: null }),
   useRunAudit: () => ({ mutate: vi.fn(), isPending: false, error: null }),
   useStudentCourses: () => ({ data: studentCourses, isLoading: false, error: null })
 }));
@@ -113,8 +112,6 @@ describe("student pages", () => {
     expect(screen.getByText("GPA 4.28")).toBeInTheDocument();
     expect(screen.getByText("系排名 3 / 55")).toBeInTheDocument();
     expect(screen.getByText("班排名 3 / 55")).toBeInTheDocument();
-    expect(screen.queryByText("英文課名")).not.toBeInTheDocument();
-    expect(screen.queryByText("Statistical Machine Learning")).not.toBeInTheDocument();
     expect(screen.getByText("成績/等第")).toBeInTheDocument();
     expect(screen.getByText("100.00 / A+")).toBeInTheDocument();
   });

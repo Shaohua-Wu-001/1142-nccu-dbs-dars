@@ -2,9 +2,9 @@
 
 ## Borrowed Ideas
 
-From `/Users/chengpeici/Desktop/dbs`, this backend borrows the simple course/student/audit API flow and Excel-based data import idea.
+From the earlier DBS prototype, this backend borrows the simple course/student/audit API flow and Excel-based data import idea.
 
-From `/Users/chengpeici/Desktop/graduatenu-main`, this backend borrows the degree-audit concept: requirements are modeled as reusable rules, and the audit engine evaluates student courses against those rules.
+From the earlier graduation-audit prototype, this backend borrows the degree-audit concept: requirements are modeled as reusable rules, and the audit engine evaluates student courses against those rules.
 
 ## Architecture
 
@@ -159,9 +159,11 @@ The migration script also retains a small cleanup step for legacy duplicate uniq
 Future schema changes should be added as new files, for example:
 
 ```text
-002-add-unresolved-course-review-fields.js
-003-add-auth-tables.js
+008-add-unresolved-course-review-fields.js
+009-add-additional-audit-fields.js
 ```
+
+Authentication-related migrations already exist in `002-add-auth-fields.js`, `003-add-username.js`, and `004-add-reset-token.js`.
 
 ## Manual Adjustments
 

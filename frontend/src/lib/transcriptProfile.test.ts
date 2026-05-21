@@ -7,8 +7,8 @@ describe("extractStudentAcademicProfile", () => {
       {
         課業學習: {
           aboutMe: {
-            chineseName: "陳柏澔",
-            studentNumber: "111302020",
+            chineseName: "Demo Student",
+            studentNumber: "DEMO001",
             registerMajor: "金融學系",
             registerDoubleMajor: "統計學系",
             registerMinor: "應用數學系、會計學系"
@@ -48,8 +48,8 @@ describe("extractStudentAcademicProfile", () => {
     ];
 
     expect(extractStudentAcademicProfile(transcript)).toEqual({
-      studentName: "陳柏澔",
-      studentNumber: "111302020",
+      studentName: "Demo Student",
+      studentNumber: "DEMO001",
       major: "金融學系",
       doubleMajor: "統計學系",
       minor: "應用數學系、會計學系",

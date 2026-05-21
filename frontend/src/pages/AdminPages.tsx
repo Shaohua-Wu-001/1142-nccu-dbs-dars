@@ -1,7 +1,8 @@
-import { FormEvent, type ReactNode, useMemo, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, BookOpen, ChevronDown, ClipboardCheck, Database, FileWarning, History, ListChecks, Route, Sparkles, UserCog } from "lucide-react";
-import { useAuditHistory, useAuditHistoryDetail, useCourses, useCreateManualCourse, useDeleteManualCourse, useRequirements, useStudentCourses, useUnresolvedCourses } from "../api/hooks";
+import { clsx } from "clsx";
+import { ArrowRight, BookOpen, ChevronDown, ClipboardCheck, Database, FileWarning, History, ListChecks, Route, Sparkles, UserCog, Users } from "lucide-react";
+import { useAdminStudents, useAuditHistory, useAuditHistoryDetail, useCourses, useCreateManualCourse, useDeleteManualCourse, useRequirements, useRunAudit, useStudentCourses, useUnresolvedCourses, useUpdateManualCourse } from "../api/hooks";
 import { AuditResultView } from "../components/AuditResultView";
 import { MetricTile } from "../components/MetricTile";
 import { PageHeader } from "../components/PageHeader";
@@ -10,21 +11,22 @@ import { StatusBadge } from "../components/StatusBadge";
 import { buildManualCourseLink, getAdminDashboardStats } from "../lib/adminWorkflow";
 import { formatCredits } from "../lib/status";
 import { useAppState } from "../state/AppState";
-import type { AuditHistoryRow, ManualCoursePayload } from "../types/api";
+import type { AuditHistoryRow, ManualCoursePayload, StudentCourse } from "../types/api";
 
 function TargetUserControl() {
-  const { targetUserId, setTargetUserId } = useAppState();
+  const { targetUserId } = useAppState();
+  const { data } = useAdminStudents();
+  const student = data?.rows.find((r) => r.userId === targetUserId);
   return (
-    <label className="text-sm font-semibold text-slate-700">
-      檢視學生 userId
-      <input
-        className="ml-2 w-24 rounded-md border border-slate-300 px-3 py-2"
-        type="number"
-        min={1}
-        value={targetUserId}
-        onChange={(event) => setTargetUserId(Number(event.target.value || 1))}
-      />
-    </label>
+    <Link
+      to="/admin/students"
+      className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-navy-800 transition hover:border-navy-300 hover:bg-white"
+    >
+      <Users className="h-4 w-4 text-slate-400" />
+      {student
+        ? <span>{student.studentName} <span className="font-mono font-normal text-slate-500">{student.studentNumber}</span></span>
+        : <span className="text-slate-500">選擇學生</span>}
+    </Link>
   );
 }
 
@@ -51,8 +53,15 @@ function AdminFlowCard({ icon, title, description, to, tone = "navy" }: { icon: 
   );
 }
 
+function manualCourseSearchParams(course: StudentCourse) {
+  const [, query = ""] = buildManualCourseLink(course).split("?");
+  return new URLSearchParams(query);
+}
+
 export function AdminDashboard() {
   const { targetUserId } = useAppState();
+  const { data: studentsData } = useAdminStudents();
+  const student = studentsData?.rows.find((r) => r.userId === targetUserId);
   const studentCourses = useStudentCourses(targetUserId);
   const unresolved = useUnresolvedCourses(targetUserId);
   const history = useAuditHistory(targetUserId);
@@ -70,7 +79,9 @@ export function AdminDashboard() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#C5A059]">目前管理對象</p>
-              <h2 className="mt-2 font-serif text-3xl font-bold text-navy-950">userId {targetUserId}</h2>
+              <h2 className="mt-2 font-serif text-3xl font-bold text-navy-950">
+                {student ? <>{student.studentName} <span className="ml-2 font-mono text-xl font-semibold text-slate-500">{student.studentNumber}</span></> : "尚未選擇學生"}
+              </h2>
               <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">先確認 transcript 無法分類的課程，再用人工調整補上認列方式，最後回到審核紀錄檢查結果。</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-right">
@@ -87,7 +98,7 @@ export function AdminDashboard() {
         </div>
       </section>
       <div className="grid gap-4 lg:grid-cols-3">
-        <AdminFlowCard icon={<ListChecks className="h-5 w-5" />} title="1. 檢查待確認課程" description="找出 transcript 匯入後尚未能分類或需要系辦判斷的課程。" to="/admin/unresolved" tone="amber" />
+        <AdminFlowCard icon={<ListChecks className="h-5 w-5" />} title="1. 檢查待確認課程" description="找出 transcript 匯入後尚未能分類或需要系辦判斷的課程。" to="/admin/students" tone="amber" />
         <AdminFlowCard icon={<UserCog className="h-5 w-5" />} title="2. 建立人工調整" description="新增抵免、核准替代或人工認列，讓下一次審核能採計。" to="/admin/manual-courses" />
         <AdminFlowCard icon={<ClipboardCheck className="h-5 w-5" />} title="3. 查看審核紀錄" description="載入指定學生最新或歷史審核結果，確認缺漏項目是否改善。" to="/admin/audit-history" tone="emerald" />
       </div>
@@ -148,9 +159,60 @@ export function AdminManualCoursesPage() {
   const { targetUserId } = useAppState();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showGuide, setShowGuide] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+  const [editingManualId, setEditingManualId] = useState<number | null>(null);
+  const runAudit = useRunAudit();
+  const { data: studentsData } = useAdminStudents();
+  const targetStudent = studentsData?.rows.find((r) => r.userId === targetUserId);
+  const auditYear = String(targetStudent?.admissionYear ?? "114");
+  const [categoryValue, setCategoryValue] = useState(() => {
+    const cat = searchParams.get("courseCategory") || "選修";
+    return cat.endsWith("-核心") ? cat.slice(0, -3) : cat;
+  });
+  const [isCore, setIsCore] = useState(() => (searchParams.get("courseCategory") || "").endsWith("-核心"));
+  const [recognitionType, setRecognitionType] = useState(searchParams.get("recognitionType") || "MANUAL_CREDIT");
+  const [mode, setMode] = useState<"general" | "substitution" | "elective">(() => {
+    const rt = searchParams.get("recognitionType");
+    const cat = searchParams.get("courseCategory") || "";
+    if (rt === "APPROVED_SUBSTITUTION") return "substitution";
+    if (cat.startsWith("通識-")) return "general";
+    return "elective";
+  });
+
+  const isCoreEligible = new Set(["通識-人文", "通識-社會", "通識-自然"]).has(categoryValue);
+
+  function handleModeChange(newMode: "general" | "substitution" | "elective") {
+    setMode(newMode);
+    setIsCore(false);
+    if (newMode === "general") {
+      if (!categoryValue.startsWith("通識-")) setCategoryValue("通識-人文");
+      setRecognitionType("MANUAL_CREDIT");
+    } else if (newMode === "substitution") {
+      setCategoryValue("系必修");
+      setRecognitionType("APPROVED_SUBSTITUTION");
+    } else {
+      if (categoryValue.startsWith("通識-")) setCategoryValue("選修");
+      setRecognitionType("MANUAL_CREDIT");
+    }
+  }
+
+  useEffect(() => {
+    const cat = searchParams.get("courseCategory") || "選修";
+    const hasCore = cat.endsWith("-核心");
+    const baseCat = hasCore ? cat.slice(0, -3) : cat;
+    setCategoryValue(baseCat);
+    setIsCore(hasCore);
+    const rt = searchParams.get("recognitionType") || "MANUAL_CREDIT";
+    setRecognitionType(rt);
+    if (rt === "APPROVED_SUBSTITUTION") setMode("substitution");
+    else if (baseCat.startsWith("通識-")) setMode("general");
+    else setMode("elective");
+  }, [searchParams]);
   const createManual = useCreateManualCourse(targetUserId);
+  const updateManual = useUpdateManualCourse(targetUserId);
   const deleteManual = useDeleteManualCourse(targetUserId);
   const courses = useStudentCourses(targetUserId);
+  const unresolved = useUnresolvedCourses(targetUserId);
   const manualRows = useMemo(() => (courses.data || []).filter((course) => course.source === "MANUAL"), [courses.data]);
   const formKey = `${targetUserId}:${searchParams.toString()}`;
 
@@ -193,6 +255,7 @@ export function AdminManualCoursesPage() {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setSuccessMsg("");
     const form = new FormData(event.currentTarget);
     const academicYear = Number(form.get("academicYear") || 111);
     const semester = String(form.get("semester") || "1");
@@ -202,20 +265,64 @@ export function AdminManualCoursesPage() {
       courseName: String(form.get("courseName") || ""),
       credits: Number(form.get("credits") || 0),
       department: String(form.get("department") || "應用數學系"),
-      courseCategory: String(form.get("courseCategory") || "選修"),
+      courseCategory: mode === "general" && isCore ? `${categoryValue}-核心` : categoryValue,
       academicYear,
       semester,
       academicYearSemester: `${academicYear}${semester}`,
       score: String(form.get("score") || "MANUAL"),
       remark: String(form.get("remark") || ""),
-      recognitionType: String(form.get("recognitionType") || "MANUAL_CREDIT") as ManualCoursePayload["recognitionType"],
+      recognitionType: recognitionType as ManualCoursePayload["recognitionType"],
       approvalStatus: String(form.get("approvalStatus") || "APPROVED") as ManualCoursePayload["approvalStatus"],
       substitutionForCourseCode: String(form.get("substitutionForCourseCode") || ""),
       approvalSource: String(form.get("approvalSource") || "系辦人工調整"),
       approvalNote: String(form.get("approvalNote") || "")
     };
-    createManual.mutate(payload);
+    createManual.mutate(payload, {
+      onSuccess: async () => {
+        const wasHandlingUnresolved = Boolean(searchParams.get("courseCode"));
+        const currentSourceId = Number(searchParams.get("sourceCourseId"));
+        const refreshedUnresolved = await unresolved.refetch();
+        const remainingRows = refreshedUnresolved.data?.rows ?? [];
+        const nextCourse = wasHandlingUnresolved
+          ? remainingRows.find((course) => course.id !== currentSourceId) ?? remainingRows[0] ?? null
+          : null;
+
+        if (nextCourse) {
+          setSuccessMsg(`人工調整已儲存，已帶入下一筆待確認課程：${nextCourse.course_name}`);
+          setSearchParams(manualCourseSearchParams(nextCourse));
+        } else {
+          setSuccessMsg(wasHandlingUnresolved
+            ? "人工調整已儲存，此學生的待確認課程已全部處理完。"
+            : "人工調整已成功儲存！");
+          setSearchParams(new URLSearchParams());
+        }
+        runAudit.mutate({ userId: targetUserId, academicYear: auditYear, includeInProgress: false, saveResult: true, auditSource: "ADMIN" });
+      }
+    });
   }
+
+  function submitManualEdit(event: FormEvent<HTMLFormElement>, id: number) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const payload: Partial<ManualCoursePayload> = {
+      courseCategory: String(form.get("courseCategory") || ""),
+      credits: Number(form.get("credits") || 0),
+      score: String(form.get("score") || "MANUAL"),
+      approvalStatus: String(form.get("approvalStatus") || "APPROVED") as ManualCoursePayload["approvalStatus"],
+      recognitionType: String(form.get("recognitionType") || "MANUAL_CREDIT") as ManualCoursePayload["recognitionType"],
+      approvalNote: String(form.get("approvalNote") || "")
+    };
+    updateManual.mutate({ id, payload }, {
+      onSuccess: () => {
+        setEditingManualId(null);
+        setSuccessMsg("人工調整已更新，系統會自動重新執行並儲存審核。");
+        runAudit.mutate({ userId: targetUserId, academicYear: auditYear, includeInProgress: false, saveResult: true, auditSource: "ADMIN" });
+      }
+    });
+  }
+
+  const ic = "mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-navy-950 focus:border-blue-500 focus:bg-white focus:outline-none";
+  const sc = "w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-navy-950 focus:border-blue-500 focus:bg-white focus:outline-none";
 
   return (
     <div className="space-y-6">
@@ -275,53 +382,164 @@ export function AdminManualCoursesPage() {
             ) : null}
           </div>
         </div>
-        <div className="grid gap-x-6 gap-y-4 p-6 lg:grid-cols-3">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-400">課號
-            <input className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-navy-950 focus:border-blue-500 focus:bg-white focus:outline-none" name="courseCode" defaultValue={searchParams.get("courseCode") || ""} placeholder="例如 MANUAL-001" required />
+        <div className="grid gap-x-6 gap-y-5 p-6 lg:grid-cols-3">
+
+          {/* ── 調整類型卡片 ── */}
+          <div className="lg:col-span-3">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">調整類型</p>
+            <div className="grid grid-cols-3 gap-3">
+              {([
+                { id: "general" as const,      label: "通識課程認列",  sub: "認列至指定通識領域（人文、社科、自然、外文等）" },
+                { id: "substitution" as const, label: "系必修核准替代", sub: "以修讀的課程取代特定系必修課程" },
+                { id: "elective" as const,     label: "選修 / 其他",   sub: "補足選修學分、體育必修等其他情況" }
+              ]).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => handleModeChange(m.id)}
+                  className={clsx(
+                    "flex flex-col items-start rounded-2xl border px-5 py-4 text-left transition",
+                    mode === m.id
+                      ? "border-navy-900 bg-navy-900 shadow-md"
+                      : "border-slate-200 bg-slate-50 hover:border-navy-300 hover:bg-white"
+                  )}
+                >
+                  <span className={clsx("text-sm font-black", mode === m.id ? "text-white" : "text-navy-900")}>{m.label}</span>
+                  <span className={clsx("mt-1.5 text-xs leading-relaxed", mode === m.id ? "text-white/65" : "text-slate-400")}>{m.sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── 課號 / 課名 / 學分 ── */}
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-600">課號<span className="ml-0.5 text-red-500">*</span>
+            <input className={ic} name="courseCode" defaultValue={searchParams.get("courseCode") || ""} placeholder="例如 MANUAL-001" required />
           </label>
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-400">課名
-            <input className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-navy-950 focus:border-blue-500 focus:bg-white focus:outline-none" name="courseName" defaultValue={searchParams.get("courseName") || ""} placeholder="例如 外文抵免" required />
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-600">課名<span className="ml-0.5 text-red-500">*</span>
+            <input className={ic} name="courseName" defaultValue={searchParams.get("courseName") || ""} placeholder="例如 外文抵免" required />
           </label>
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-400">學分
-            <input className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-navy-950 focus:border-blue-500 focus:bg-white focus:outline-none" name="credits" defaultValue={searchParams.get("credits") || ""} placeholder="3" type="number" step="0.5" required />
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-600">學分<span className="ml-0.5 text-red-500">*</span>
+            <input className={ic} name="credits" defaultValue={searchParams.get("credits") || ""} placeholder="3" type="number" step="0.5" required />
           </label>
-          
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-400">認列方式
-            <select className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-navy-950 focus:border-blue-500 focus:bg-white focus:outline-none" name="recognitionType" defaultValue={searchParams.get("recognitionType") || "MANUAL_CREDIT"}>
-              <option value="MANUAL_CREDIT">人工認列 (General Credit)</option>
-              <option value="APPROVED_SUBSTITUTION">核准替代 (Substitute Required)</option>
+
+          {/* ── 依類型顯示對應欄位 ── */}
+          <div className="lg:col-span-3">
+            {mode === "general" && (
+              <div className="grid gap-6 lg:grid-cols-3">
+                <div className="space-y-2 lg:col-span-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-600">通識領域</p>
+                  <select
+                    className={sc}
+                    value={categoryValue}
+                    onChange={(e) => { setCategoryValue(e.target.value); setIsCore(false); }}
+                  >
+                    <option value="通識-人文">人文學通識</option>
+                    <option value="通識-社會">社會科學通識</option>
+                    <option value="通識-自然">自然科學通識</option>
+                    <option value="通識-外文">外國語文通識</option>
+                    <option value="通識-中文">中國語文通識</option>
+                    <option value="通識-資訊">資訊通識</option>
+                    <option value="通識-書院">書院通識</option>
+                  </select>
+                  {isCoreEligible && (
+                    <label className="flex cursor-pointer items-center gap-2 pt-1 text-sm font-semibold text-slate-700">
+                      <input type="checkbox" checked={isCore} onChange={(e) => setIsCore(e.target.checked)} className="h-4 w-4 rounded border-slate-300 accent-navy-900" />
+                      核心通識
+                    </label>
+                  )}
+                </div>
+                <div className="hidden rounded-2xl bg-blue-50 p-4 text-xs leading-relaxed text-blue-800 lg:block">
+                  <p className="font-bold">通識採計說明</p>
+                  <p className="mt-1">總計上限 28 學分。各領域超修不列計；應數系資訊通識無最低門檻。</p>
+                  <p className="mt-2 font-bold">核心通識</p>
+                  <p className="mt-1">人文、社科、自然三領域中至少 2 門、不同領域各 1 門方可達標。</p>
+                </div>
+              </div>
+            )}
+
+            {mode === "substitution" && (
+              <div className="grid gap-6 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    被替代的必修課號<span className="ml-0.5 text-red-500">*</span>
+                    <input
+                      className="mt-1 w-full rounded-xl border border-blue-200 bg-blue-50/50 px-4 py-2.5 text-sm font-bold text-navy-950 placeholder:font-normal placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none"
+                      name="substitutionForCourseCode"
+                      defaultValue={searchParams.get("substitutionForCourseCode") || ""}
+                      placeholder="填入被取代那門必修的課號，例如 701001001"
+                      required
+                    />
+                  </label>
+                </div>
+                <div className="hidden rounded-2xl bg-blue-50 p-4 text-xs leading-relaxed text-blue-800 lg:block">
+                  <p className="font-bold">核准替代說明</p>
+                  <p className="mt-1">此課程將在審核時標記取代指定必修課。被替代課號如有誤，必修仍會顯示未完成。</p>
+                </div>
+              </div>
+            )}
+
+            {mode === "elective" && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-600">課程類別</p>
+                <select className={`mt-1 max-w-xs ${sc}`} value={categoryValue} onChange={(e) => setCategoryValue(e.target.value)}>
+                  <option value="選修">選修</option>
+                  <option value="體育必修">體育必修</option>
+                  <option value="系必修">系必修</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* ── 學年度 / 學期 / 成績 ── */}
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-600">學年度
+            <input className={ic} name="academicYear" defaultValue={searchParams.get("academicYear") || "111"} />
+          </label>
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-600">學期
+            <select className={`mt-1 ${sc}`} name="semester" defaultValue={searchParams.get("semester") || "1"}>
+              <option value="1">1（上學期）</option>
+              <option value="2">2（下學期）</option>
+              <option value="S">S（暑修）</option>
             </select>
           </label>
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-400">替代必修課號
-            <input className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-navy-950 focus:border-blue-500 focus:bg-white focus:outline-none" name="substitutionForCourseCode" defaultValue={searchParams.get("substitutionForCourseCode") || ""} placeholder="例如 701001001" />
-          </label>
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-400">課程類別
-            <input className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-navy-950 focus:border-blue-500 focus:bg-white focus:outline-none" name="courseCategory" defaultValue={searchParams.get("courseCategory") || "選修"} />
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-600">成績
+            <span className="ml-1 text-[10px] font-normal normal-case text-slate-400">（從成績單自動帶入）</span>
+            <input className={ic} name="score" defaultValue={searchParams.get("score") || "MANUAL"} />
           </label>
 
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-400">學年度
-            <input className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-navy-950 focus:border-blue-500 focus:bg-white focus:outline-none" name="academicYear" defaultValue={searchParams.get("academicYear") || "111"} />
+          {/* ── 備註 + 送出 ── */}
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-600 lg:col-span-2">審核說明/備註
+            <input className={ic} name="approvalNote" defaultValue={searchParams.get("approvalNote") || ""} placeholder="例如：依系務會議通過..." />
           </label>
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-400">學期
-            <input className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-navy-950 focus:border-blue-500 focus:bg-white focus:outline-none" name="semester" defaultValue={searchParams.get("semester") || "1"} />
-          </label>
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-400">成績
-            <input className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-navy-950 focus:border-blue-500 focus:bg-white focus:outline-none" name="score" defaultValue={searchParams.get("score") || "MANUAL"} />
-          </label>
-
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-400 lg:col-span-2">審核說明/備註
-            <input className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-navy-950 focus:border-blue-500 focus:bg-white focus:outline-none" name="approvalNote" defaultValue={searchParams.get("approvalNote") || ""} placeholder="例如：依系務會議通過..." />
-          </label>
-
-          <div className="flex items-end lg:col-span-1">
-            <button className="w-full rounded-xl bg-navy-900 py-3 text-sm font-black text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-navy-950 active:translate-y-0" disabled={createManual.isPending}>
-              {createManual.isPending ? "正在儲存資料..." : "確認新增調整"}
+          <div className="flex flex-col justify-end gap-2">
+            <p className="text-xs text-slate-400"><span className="text-red-500">*</span> 為必填欄位</p>
+            <button className="w-full rounded-xl bg-navy-900 py-3 text-sm font-black text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-navy-950 active:translate-y-0 disabled:opacity-60" disabled={createManual.isPending || runAudit.isPending}>
+              {createManual.isPending ? "正在儲存調整..." : runAudit.isPending ? "正在重新審核..." : "新增調整"}
             </button>
           </div>
         </div>
       </form>
       {createManual.error ? <div className="mt-4"><ErrorState message={createManual.error.message} /></div> : null}
-      {createManual.data ? <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">✅ 人工調整已成功儲存！</p> : null}
+      {updateManual.error ? <div className="mt-4"><ErrorState message={updateManual.error.message} /></div> : null}
+
+      {successMsg && (
+        <div className="mt-4 overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50">
+          <div className="px-5 py-4">
+            <p className="font-bold text-emerald-800">人工調整已儲存</p>
+            <p className="mt-1 text-sm text-emerald-700">{successMsg} 系統會自動重新執行並儲存審核。</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 border-t border-emerald-100 bg-white/60 px-5 py-3">
+            {runAudit.isPending && (
+              <span className="text-sm font-bold text-emerald-700">審核執行中...</span>
+            )}
+            {runAudit.isSuccess && (
+              <span className="text-sm font-bold text-emerald-700">審核已儲存，學生現在可以看到最新結果</span>
+            )}
+            {runAudit.error && (
+              <span className="text-sm font-bold text-red-600">{(runAudit.error as Error).message}</span>
+            )}
+          </div>
+        </div>
+      )}
       
       <div className="mt-8">
         <div className="mb-4 flex items-center justify-between">
@@ -332,25 +550,77 @@ export function AdminManualCoursesPage() {
           <div className="grid gap-3">
             {manualRows.map((row) => (
               <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 md:flex-row md:items-center md:justify-between" key={row.id}>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-black text-navy-900">{row.course_name}</p>
-                    <span className="text-xs font-bold text-slate-400">#{row.course_code}</span>
-                  </div>
-                  <p className="mt-1 text-xs font-bold text-slate-500">
-                    {formatCredits(row.credits)} 學分 • {row.course_category} • {row.academic_year_semester}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <StatusBadge value={row.recognition_type} />
-                    <StatusBadge value={row.approval_status} />
-                  </div>
-                </div>
-                <button 
-                  className="rounded-xl border border-red-100 px-4 py-2 text-xs font-black text-red-600 transition hover:bg-red-50" 
-                  onClick={() => { if(confirm("確定要刪除這筆手動紀錄嗎？")) deleteManual.mutate(row.id) }}
-                >
-                  刪除紀錄
-                </button>
+                {editingManualId === row.id ? (
+                  <form className="grid flex-1 gap-3 md:grid-cols-6" onSubmit={(event) => submitManualEdit(event, row.id)}>
+                    <div className="md:col-span-2">
+                      <p className="font-black text-navy-900">{row.course_name}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-400">#{row.course_code} • {row.academic_year_semester}</p>
+                    </div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      類別
+                      <input className={ic} name="courseCategory" defaultValue={row.course_category || ""} />
+                    </label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      學分
+                      <input className={ic} name="credits" defaultValue={String(row.credits)} step="0.5" type="number" />
+                    </label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      成績
+                      <input className={ic} name="score" defaultValue={row.score || "MANUAL"} />
+                    </label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      狀態
+                      <select className={`mt-1 ${sc}`} name="approvalStatus" defaultValue={row.approval_status}>
+                        <option value="APPROVED">APPROVED</option>
+                        <option value="PENDING">PENDING</option>
+                        <option value="REJECTED">REJECTED</option>
+                      </select>
+                    </label>
+                    <input name="recognitionType" type="hidden" value={row.recognition_type} />
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 md:col-span-4">
+                      審核說明
+                      <input className={ic} name="approvalNote" defaultValue={row.approval_note || ""} />
+                    </label>
+                    <div className="flex items-end gap-2 md:col-span-2">
+                      <button className="rounded-xl bg-navy-900 px-4 py-2 text-xs font-black text-white transition hover:bg-navy-950 disabled:opacity-60" disabled={updateManual.isPending} type="submit">
+                        {updateManual.isPending ? "儲存中..." : "儲存修改"}
+                      </button>
+                      <button className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-50" onClick={() => setEditingManualId(null)} type="button">
+                        取消
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-black text-navy-900">{row.course_name}</p>
+                        <span className="text-xs font-bold text-slate-400">#{row.course_code}</span>
+                      </div>
+                      <p className="mt-1 text-xs font-bold text-slate-500">
+                        {formatCredits(row.credits)} 學分 • {row.course_category} • {row.academic_year_semester}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <StatusBadge value={row.recognition_type} />
+                        <StatusBadge value={row.approval_status} />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        className="rounded-xl border border-navy-100 px-4 py-2 text-xs font-black text-navy-800 transition hover:bg-navy-50"
+                        onClick={() => setEditingManualId(row.id)}
+                      >
+                        編輯
+                      </button>
+                      <button
+                        className="rounded-xl border border-red-100 px-4 py-2 text-xs font-black text-red-600 transition hover:bg-red-50"
+                        onClick={() => { if(confirm("確定要刪除這筆手動紀錄嗎？")) deleteManual.mutate(row.id) }}
+                      >
+                        刪除紀錄
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -636,7 +906,7 @@ export function AdminAuditHistoryPage() {
       
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricTile label="紀錄數" value={rows.length} detail={`userId ${targetUserId}`} icon={<History className="h-5 w-5" />} />
-        <MetricTile label="目前載入" value={selectedRow ? `#${selectedRow.id}` : "尚無"} detail={selectedRow ? new Date(selectedRow.created_at).toLocaleString() : undefined} icon={<ClipboardCheck className="h-5 w-5" />} />
+        <MetricTile label="目前載入" value={selectedRow ? (selectedRow.audit_name || `#${selectedRow.id}`) : "尚無"} detail={selectedRow ? new Date(selectedRow.created_at).toLocaleString() : undefined} icon={<ClipboardCheck className="h-5 w-5" />} />
         <MetricTile label="完成率" value={selectedRow ? `${formatCredits(selectedRow.progress_percentage)}%` : "—"} detail="該次審核進度" icon={<Sparkles className="h-5 w-5" />} />
         
         <div className="rounded-2xl border border-navy-200 bg-white p-4 shadow-sm shadow-blue-950/5">
@@ -650,9 +920,9 @@ export function AdminAuditHistoryPage() {
             onChange={(e) => setSelected(Number(e.target.value))}
           >
             {rows.length === 0 && <option value="">尚無紀錄</option>}
-            {rows.sort((a, b) => b.id - a.id).map((row) => (
+            {[...rows].sort((a, b) => b.id - a.id).map((row) => (
               <option key={row.id} value={row.id}>
-                Audit #{row.id} ({new Date(row.created_at).toLocaleDateString()} {new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}) - {formatCredits(row.progress_percentage)}%
+                {row.audit_name || `Audit #${row.id}`} ({new Date(row.created_at).toLocaleDateString()} {new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}) - {formatCredits(row.progress_percentage)}%
               </option>
             ))}
           </select>
@@ -665,6 +935,223 @@ export function AdminAuditHistoryPage() {
         {!historyDetail.isLoading && !historyDetail.error ? (
           result ? <AuditResultView result={result} studentProfile={targetStudentProfile} /> : <EmptyState title={selectedRow ? "這筆紀錄沒有審核明細" : "選擇一筆審核紀錄"} />
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function StudentUnresolvedPanel({ userId }: { userId: number }) {
+  const unresolved = useUnresolvedCourses(userId);
+  if (unresolved.isLoading) return <LoadingState label="載入待確認課程" />;
+  if (unresolved.error) return <ErrorState message={unresolved.error.message} />;
+  const rows = unresolved.data?.rows ?? [];
+  if (rows.length === 0) return (
+    <p className="py-4 text-center text-sm font-semibold text-slate-400">此學生無待確認課程</p>
+  );
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-slate-100 text-sm">
+        <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-400">
+          <tr>
+            <th className="px-4 py-2.5">學年期</th>
+            <th className="px-4 py-2.5">課號</th>
+            <th className="px-4 py-2.5">課名</th>
+            <th className="px-4 py-2.5">學分</th>
+            <th className="px-4 py-2.5">狀態</th>
+            <th className="px-4 py-2.5">備註</th>
+            <th className="px-4 py-2.5 text-right">處理</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 bg-white">
+          {rows.map((course) => (
+            <tr key={course.id}>
+              <td className="px-4 py-2.5 text-slate-500">{course.academic_year_semester}</td>
+              <td className="px-4 py-2.5 font-mono font-semibold text-navy-800">{course.course_code}</td>
+              <td className="px-4 py-2.5">{course.course_name}</td>
+              <td className="px-4 py-2.5">{formatCredits(course.credits)}</td>
+              <td className="px-4 py-2.5"><StatusBadge value={course.status} /></td>
+              <td className="px-4 py-2.5 text-slate-500">{course.remark || "—"}</td>
+              <td className="px-4 py-2.5 text-right">
+                <Link
+                  className="inline-flex items-center gap-1 rounded-lg bg-navy-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-navy-900"
+                  to={buildManualCourseLink(course)}
+                >
+                  帶入調整 <ArrowRight className="h-3 w-3" />
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function StudentTranscriptPanel({ userId }: { userId: number }) {
+  const courses = useStudentCourses(userId);
+  if (courses.isLoading) return <LoadingState label="載入完整成績單" />;
+  if (courses.error) return <ErrorState message={courses.error.message} />;
+
+  const rows = (courses.data ?? []).filter((course) => course.source === "TRANSCRIPT_JSON");
+  if (rows.length === 0) {
+    return <p className="py-4 text-center text-sm font-semibold text-slate-400">此學生尚未上傳成績單</p>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-slate-100 text-sm">
+        <thead className="bg-white text-left text-xs font-semibold uppercase text-slate-400">
+          <tr>
+            <th className="px-4 py-2.5">學年期</th>
+            <th className="px-4 py-2.5">課號</th>
+            <th className="px-4 py-2.5">課名</th>
+            <th className="px-4 py-2.5">開課單位</th>
+            <th className="px-4 py-2.5">分類</th>
+            <th className="px-4 py-2.5">學分</th>
+            <th className="px-4 py-2.5">成績</th>
+            <th className="px-4 py-2.5">狀態</th>
+            <th className="px-4 py-2.5 text-right">處理</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 bg-white">
+          {rows.map((course) => (
+            <tr key={course.id}>
+              <td className="whitespace-nowrap px-4 py-2.5 text-slate-500">{course.academic_year_semester}</td>
+              <td className="whitespace-nowrap px-4 py-2.5 font-mono font-semibold text-navy-800">{course.course_code}</td>
+              <td className="min-w-[12rem] px-4 py-2.5 font-medium text-slate-800">{course.course_name}</td>
+              <td className="px-4 py-2.5 text-slate-500">{course.department || "—"}</td>
+              <td className="px-4 py-2.5 text-slate-500">{course.course_category || "待確認"}</td>
+              <td className="px-4 py-2.5">{formatCredits(course.credits)}</td>
+              <td className="px-4 py-2.5 text-slate-600">{course.score || "—"}</td>
+              <td className="px-4 py-2.5"><StatusBadge value={course.status} /></td>
+              <td className="px-4 py-2.5 text-right">
+                <Link
+                  className="inline-flex items-center gap-1 rounded-lg border border-navy-200 bg-white px-3 py-1.5 text-xs font-bold text-navy-800 hover:bg-navy-900 hover:text-white"
+                  to={buildManualCourseLink(course)}
+                >
+                  帶入調整 <ArrowRight className="h-3 w-3" />
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function AdminStudentsPage() {
+  const { targetUserId, setTargetUserId } = useAppState();
+  const { data, isLoading, error } = useAdminStudents();
+  const [search, setSearch] = useState("");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const rows = data?.rows ?? [];
+  const filtered = rows.filter((r) => {
+    const q = search.toLowerCase();
+    return (
+      (r.studentNumber ?? "").toLowerCase().includes(q) ||
+      (r.studentName ?? "").toLowerCase().includes(q) ||
+      (r.email ?? "").toLowerCase().includes(q)
+    );
+  });
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="學生管理" description="學生帳號與成績單狀態，點擊姓名可查看待確認課程與完整成績單。" />
+
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm shadow-blue-950/5">
+        <div className="border-b border-slate-100 px-6 py-4">
+          <input
+            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-navy-900 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-navy-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+            placeholder="搜尋學號或姓名…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        {isLoading && <LoadingState label="載入學生名單中" />}
+        {error && <ErrorState message={error.message} />}
+
+        {!isLoading && !error && (
+          filtered.length === 0
+            ? <EmptyState title={search ? "找不到符合的學生" : "目前沒有學生上傳成績單"} />
+            : <div className="divide-y divide-slate-100">
+                {filtered.map((row) => {
+                  const isActive = row.userId === targetUserId;
+                  const isExpanded = expandedId === row.userId;
+                  return (
+                    <div key={row.userId}>
+                      {/* 學生列 */}
+                      <div className={`flex items-center gap-4 px-6 py-4 ${isActive ? "bg-blue-50/50" : ""}`}>
+                        {/* 頭像 */}
+                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-navy-900 text-sm font-black text-white">
+                          {(row.studentName ?? "?").slice(0, 1)}
+                        </div>
+                        {/* 姓名 + 學號 — 點擊展開 */}
+                        <button
+                          className="min-w-0 flex-1 text-left"
+                          onClick={() => setExpandedId(isExpanded ? null : row.userId)}
+                        >
+                          <p className="flex items-center gap-2 font-bold text-navy-950 hover:text-navy-700">
+                            {row.studentName ?? "—"}
+                            {row.unresolvedCount > 0 && (
+                              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-700">
+                                待確認 {row.unresolvedCount}
+                              </span>
+                            )}
+                            <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                          </p>
+                          <p className="mt-0.5 font-mono text-xs text-slate-500">
+                            {row.studentNumber ?? "—"} · {row.admissionYear ? `${row.admissionYear} 級` : "—"} · {row.email ?? "—"}
+                          </p>
+                        </button>
+                        {/* 操作 */}
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="hidden text-xs text-slate-400 sm:block">
+                            {row.latestUploadAt ? `${new Date(row.latestUploadAt).toLocaleDateString("zh-TW")} 上傳` : "尚未上傳"}
+                          </span>
+                          {isActive ? (
+                            <span className="rounded-full bg-navy-900 px-3 py-1 text-xs font-black text-white">
+                              目前檢視中
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setTargetUserId(row.userId)}
+                              className="rounded-xl border border-navy-200 bg-navy-50 px-3 py-1.5 text-xs font-black text-navy-800 transition hover:bg-navy-900 hover:text-white"
+                            >
+                              切換管理
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {/* 展開：待確認課程與完整成績單 */}
+                      {isExpanded && (
+                        <div className="space-y-6 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
+                          <section>
+                            <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">待確認課程</p>
+                            <StudentUnresolvedPanel userId={row.userId} />
+                          </section>
+                          <section>
+                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-xs font-black uppercase tracking-widest text-slate-400">完整成績單</p>
+                              <Link
+                                className="rounded-lg bg-navy-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-navy-900"
+                                to="/admin/manual-courses"
+                                onClick={() => setTargetUserId(row.userId)}
+                              >
+                                新增空白人工調整
+                              </Link>
+                            </div>
+                            <StudentTranscriptPanel userId={row.userId} />
+                          </section>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+        )}
       </div>
     </div>
   );

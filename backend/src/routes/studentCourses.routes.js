@@ -5,9 +5,12 @@ const {
   createStudentCourse,
   deleteStudentCourse
 } = require("../controllers/studentCourses.controller");
+const { requireAuth } = require("../middleware/auth.middleware");
 const asyncHandler = require("../utils/asyncHandler");
 
 const router = express.Router();
+
+router.use(requireAuth);
 
 router.get("/", asyncHandler(listStudentCourses));
 router.get("/unresolved", asyncHandler(listUnresolvedStudentCourses));

@@ -18,15 +18,17 @@ Endpoints:
 - `GET /api/health`
 - `GET /api/courses?year=111&limit=50`
 - `GET /api/curriculums/111/requirements`
-- `POST /api/audit/run`
-- `POST /api/transcripts/import`
-- `GET /api/audit/history?userId=1&limit=10`
+- `POST /api/audit/run` with JWT auth
+- `POST /api/transcripts/import` with JWT auth
+- `GET /api/audit/history?userId=<loginUserId>&limit=10` with JWT auth
 
-The high-frequency query and audit scenarios use demo user `1`. The full user flow uses `FULL_FLOW_USER_ID` / `K6_USER_ID`, defaulting to user `2`, so transcript import and saved audit history do not pollute the presentation demo user.
+The high-frequency query and audit scenarios log in as `demo001` by default and use the returned user id. The full user flow logs in as `k6demo` by default and uses that returned user id, so transcript import and saved audit history do not pollute the presentation demo user. Override credentials with `DEMO_ACCOUNT`, `DEMO_PASSWORD`, `K6_ACCOUNT`, and `K6_PASSWORD`.
 
-## Result
+## Historical Result
 
 Run date: 2026-05-12
+
+These numbers are retained as a historical reference. The current k6 script logs in with JWT credentials and derives user ids from the login response; rerun `k6 run performance/k6-audit-test.js` before using this report as evidence for the current revision.
 
 - HTTP requests: 6627
 - Failed requests: 0.00%
@@ -62,4 +64,4 @@ After performance testing, run:
 docker compose exec backend npm run reset:demo
 ```
 
-This restores demo user `1` to one transcript import and zero saved audit results while keeping the K6 test user available.
+This restores `demo001` to one transcript import and zero saved audit results while keeping the `k6demo` test user available.

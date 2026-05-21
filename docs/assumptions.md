@@ -2,7 +2,7 @@
 
 1. The system only evaluates NCCU Applied Mathematics major requirements.
 2. The supported academic years are 111, 112, 113, and 114.
-3. The first version uses a demo user instead of full authentication.
+3. The system uses JWT authentication and backend role/owner authorization. Seeded demo users are still provided for local demos and tests.
 4. Transcript input is NCCU JSON, not PDF.
 5. Required courses come from `data/courses.xlsx`, sheet `required_courses`.
 6. Total graduation credits are 128, evaluated as 51 required + 4 PE + 28 general education + 45 other electives.

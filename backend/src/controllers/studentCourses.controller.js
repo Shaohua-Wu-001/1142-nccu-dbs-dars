@@ -1,13 +1,15 @@
-const { Op } = require("sequelize");
 const { StudentCourse, User } = require("../models");
 const {
   buildStudentCoursePayload,
   validateStudentCoursePayload
 } = require("../services/studentCourses/studentCoursePayload.service");
+const { listUnresolvedRows } = require("../services/studentCourses/unresolvedCourses.service");
+const { resolveTargetUserId, requireUserAccess } = require("../middleware/auth.middleware");
 
 async function listStudentCourses(req, res) {
-  const userId = Number(req.query.userId);
+  const userId = resolveTargetUserId(req, req.query);
   if (!userId) return res.status(400).json({ error: "userId is required" });
+  if (!requireUserAccess(req, res, userId)) return;
 
   const rows = await StudentCourse.findAll({
     where: { user_id: userId },
@@ -17,19 +19,11 @@ async function listStudentCourses(req, res) {
 }
 
 async function listUnresolvedStudentCourses(req, res) {
-  const userId = Number(req.query.userId);
+  const userId = resolveTargetUserId(req, req.query);
   if (!userId) return res.status(400).json({ error: "userId is required" });
+  if (!requireUserAccess(req, res, userId)) return;
 
-  const rows = await StudentCourse.findAll({
-    where: {
-      user_id: userId,
-      [Op.or]: [
-        { course_category: null },
-        { course_category: "" }
-      ]
-    },
-    order: [["academic_year_semester", "ASC"], ["course_code", "ASC"]]
-  });
+  const rows = await listUnresolvedRows(userId);
 
   res.json({
     count: rows.length,
@@ -39,7 +33,12 @@ async function listUnresolvedStudentCourses(req, res) {
 }
 
 async function createStudentCourse(req, res) {
-  const payload = buildStudentCoursePayload(req.body);
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  const userId = resolveTargetUserId(req, req.body);
+  if (!requireUserAccess(req, res, userId)) return;
+  const payload = buildStudentCoursePayload({ ...req.body, userId });
   const error = validateStudentCoursePayload(payload);
   if (error) return res.status(400).json({ error });
 
@@ -51,6 +50,13 @@ async function createStudentCourse(req, res) {
 }
 
 async function deleteStudentCourse(req, res) {
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  const row = await StudentCourse.findByPk(req.params.id);
+  if (!row) return res.status(404).json({ error: "Student course not found" });
+  if (!requireUserAccess(req, res, row.user_id)) return;
+
   const deleted = await StudentCourse.destroy({ where: { id: req.params.id } });
   if (!deleted) return res.status(404).json({ error: "Student course not found" });
   res.status(204).send();

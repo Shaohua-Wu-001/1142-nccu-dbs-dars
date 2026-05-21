@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppStateProvider } from "../state/AppState";
 import type { StudentAcademicProfile } from "../lib/transcriptProfile";
@@ -10,14 +11,34 @@ const useAuditHistoryDetailMock = vi.fn();
 const useRequirementsMock = vi.fn();
 
 vi.mock("../api/hooks", () => ({
+  useAdminStudents: () => ({
+    data: {
+      rows: [
+        {
+          userId: 1,
+          studentNumber: "DEMO001",
+          studentName: "Demo Student",
+          email: "demo@nccu.edu.tw",
+          admissionYear: 111,
+          latestUploadAt: null,
+          hasTranscript: true,
+          unresolvedCount: 0
+        }
+      ]
+    },
+    isLoading: false,
+    error: null
+  }),
   useAuditHistory: () => useAuditHistoryMock(),
   useAuditHistoryDetail: (id: number | null) => useAuditHistoryDetailMock(id),
   useCourses: vi.fn(),
   useCreateManualCourse: vi.fn(),
   useDeleteManualCourse: vi.fn(),
+  useRunAudit: vi.fn(),
   useRequirements: (year: string) => useRequirementsMock(year),
   useStudentCourses: vi.fn(),
-  useUnresolvedCourses: vi.fn()
+  useUnresolvedCourses: vi.fn(),
+  useUpdateManualCourse: vi.fn()
 }));
 
 vi.mock("../components/AuditResultView", () => ({
@@ -86,7 +107,7 @@ describe("AdminAuditHistoryPage", () => {
 
   it("loads selected audit detail before rendering the result panel", () => {
     localStorage.setItem("nccu-student-profile:1", JSON.stringify({
-      studentName: "陳柏澔",
+      studentName: "Demo Student",
       ranking: "4 / 75",
       classRanking: "5 / 75",
       averageScore: "94.55",
@@ -104,14 +125,16 @@ describe("AdminAuditHistoryPage", () => {
     });
 
     render(
-      <AppStateProvider>
-        <AdminAuditHistoryPage />
-      </AppStateProvider>
+      <MemoryRouter>
+        <AppStateProvider>
+          <AdminAuditHistoryPage />
+        </AppStateProvider>
+      </MemoryRouter>
     );
 
     expect(useAuditHistoryDetailMock).toHaveBeenCalledWith(12);
     expect(screen.getByTestId("audit-result-view")).toHaveTextContent("尚未符合畢業資格");
-    expect(screen.getByTestId("audit-result-view")).toHaveTextContent("陳柏澔");
+    expect(screen.getByTestId("audit-result-view")).toHaveTextContent("Demo Student");
     expect(screen.getByTestId("audit-result-view")).toHaveTextContent("GPA 4.21");
   });
 });

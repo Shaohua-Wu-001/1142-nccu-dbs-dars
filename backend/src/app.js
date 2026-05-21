@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 
+const authRoutes = require("./routes/auth.routes");
 const coursesRoutes = require("./routes/courses.routes");
 const curriculumsRoutes = require("./routes/curriculums.routes");
 const transcriptsRoutes = require("./routes/transcripts.routes");
@@ -10,13 +11,17 @@ const adminRoutes = require("./routes/admin.routes");
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  credentials: true
+}));
 app.use(express.json({ limit: "25mb" }));
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+app.use("/api/auth", authRoutes);
 app.use("/api/courses", coursesRoutes);
 app.use("/api/curriculums", curriculumsRoutes);
 app.use("/api/transcripts", transcriptsRoutes);

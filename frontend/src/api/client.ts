@@ -9,6 +9,18 @@ export class ApiError extends Error {
   }
 }
 
+export function getToken(): string | null {
+  return localStorage.getItem("nccu-token");
+}
+
+export function setToken(token: string): void {
+  localStorage.setItem("nccu-token", token);
+}
+
+export function clearToken(): void {
+  localStorage.removeItem("nccu-token");
+}
+
 type RequestOptions = {
   method?: string;
   body?: unknown;
@@ -22,14 +34,24 @@ export function buildApiUrl(path: string, baseUrl = API_BASE_URL) {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const response = await fetch(buildApiUrl(path), {
     method: options.method || "GET",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     signal: options.signal
   });
+
+  if (response.status === 401 && token) {
+    clearToken();
+    localStorage.removeItem("nccu-user");
+    localStorage.removeItem("nccu-target-user-id");
+    window.location.href = "/login";
+    return undefined as T;
+  }
 
   if (response.status === 204) {
     return undefined as T;

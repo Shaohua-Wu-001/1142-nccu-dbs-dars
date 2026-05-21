@@ -68,6 +68,7 @@ function checkRequiredGroup(group, rules, courseMap) {
         ruleKey: rule.rule_key,
         courseName: rule.course_name,
         matchedCourseCode,
+        matchedCourseName: studentCourse.course_name,
         department: studentCourse.department || null,
         recognitionType: studentCourse.recognition_type || "ORIGINAL",
         approvalStatus: studentCourse.approval_status || "NOT_REQUIRED",
