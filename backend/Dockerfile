@@ -4,7 +4,7 @@ WORKDIR /app
 
 # 複製 package.json 並安裝環境
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # 複製程式碼與資料夾 (現在 data 在 backend 內)
 COPY src ./src

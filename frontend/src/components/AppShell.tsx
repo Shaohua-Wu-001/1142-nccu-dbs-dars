@@ -57,6 +57,7 @@ export function AppShell({ role }: { role: "student" | "admin" }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const health = useHealth();
   const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const studentName = studentProfile?.studentName || currentUser.name;
   const studentNumber = studentProfile?.studentNumber || currentUser.student_number;
   const avatarLabel = studentName.slice(0, 1) || (role === "admin" ? "管" : "學");
