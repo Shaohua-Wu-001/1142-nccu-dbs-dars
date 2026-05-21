@@ -2,13 +2,15 @@ const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 
 const User = sequelize.define("User", {
-  student_number: { type: DataTypes.STRING(20), allowNull: false },
+  student_number: { type: DataTypes.STRING(20), allowNull: true },
   name: { type: DataTypes.STRING(100), allowNull: false },
   email: { type: DataTypes.STRING(120), allowNull: false },
-  admission_year: { type: DataTypes.INTEGER, allowNull: false },
+  admission_year: { type: DataTypes.INTEGER, allowNull: true },
   username: { type: DataTypes.STRING(50), allowNull: true },
   password_hash: { type: DataTypes.STRING(60), allowNull: true },
-  role: { type: DataTypes.ENUM("student", "admin"), allowNull: false, defaultValue: "student" }
+  role: { type: DataTypes.ENUM("student", "admin"), allowNull: false, defaultValue: "student" },
+  reset_token: { type: DataTypes.STRING(64), allowNull: true },
+  reset_expires: { type: DataTypes.DATE, allowNull: true },
 }, {
   tableName: "users",
   indexes: [

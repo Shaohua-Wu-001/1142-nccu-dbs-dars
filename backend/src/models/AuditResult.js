@@ -8,6 +8,8 @@ const AuditResult = sequelize.define("AuditResult", {
   total_credits_earned: { type: DataTypes.DECIMAL(5, 1), allowNull: false },
   total_required_credits: { type: DataTypes.DECIMAL(5, 1), allowNull: false },
   progress_percentage: { type: DataTypes.DECIMAL(5, 2), allowNull: false },
+  audit_name: { type: DataTypes.STRING(120), allowNull: true },
+  audit_source: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "STUDENT" },
   result_json: { type: DataTypes.JSON, allowNull: false }
 }, {
   tableName: "audit_results",

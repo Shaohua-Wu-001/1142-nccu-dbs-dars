@@ -6,6 +6,7 @@ import type { AuditResult, DemoUser, UserRole } from "../types/api";
 const DEFAULT_USER: DemoUser = {
   id: 0,
   student_number: "",
+  username: null,
   name: "",
   email: "",
   admission_year: 0,

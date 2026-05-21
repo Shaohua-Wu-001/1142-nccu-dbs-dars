@@ -15,6 +15,8 @@ export function buildManualCourseLink(course: StudentCourse) {
     credits: String(course.credits),
     academicYear: String(course.academic_year),
     semester: course.semester,
+    sourceCourseId: String(course.id),
+    score: course.score || "",
     remark: course.remark || ""
   });
 

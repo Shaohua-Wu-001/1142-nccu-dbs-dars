@@ -47,7 +47,7 @@ test("listAuditHistory returns total count instead of page size", async () => {
   try {
     const res = createRes();
     await auditController.listAuditHistory(
-      { query: { userId: "1", limit: "2", offset: "0" } },
+      { user: { id: 99, role: "admin" }, query: { userId: "1", limit: "2", offset: "0" } },
       res
     );
     assert.equal(res.statusCode, 200);

@@ -231,4 +231,37 @@ describe("AuditResultView", () => {
     expect(within(actionPanel).getByText("其他選修")).toBeInTheDocument();
     expect(within(actionPanel).getByText("統計機器學習")).toBeInTheDocument();
   });
+
+  it("shows the source course used for a required-course substitution", () => {
+    const result: AuditResult = {
+      ...baseResult,
+      groups: [
+        {
+          groupCode: "REQUIRED",
+          groupName: "系必修",
+          status: "INCOMPLETE",
+          earnedCredits: 3,
+          requiredCredits: 51,
+          missingCredits: 48,
+          completedRules: [
+            {
+              courseName: "微積分（上學期）",
+              matchedCourseCode: "000219571",
+              matchedCourseName: "經濟學",
+              countedCredits: 3,
+              recognitionType: "APPROVED_SUBSTITUTION",
+              substitutedForCourseCode: "701001001"
+            }
+          ]
+        }
+      ]
+    };
+
+    render(<AuditResultView result={result} />);
+    fireEvent.click(screen.getByRole("button", { name: "系必修" }));
+
+    expect(screen.getByText("微積分（上學期）")).toBeInTheDocument();
+    expect(screen.getByText("抵免課程：經濟學")).toBeInTheDocument();
+    expect(screen.getByText("000219571 → 701001001")).toBeInTheDocument();
+  });
 });

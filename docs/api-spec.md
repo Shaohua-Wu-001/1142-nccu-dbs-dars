@@ -8,6 +8,84 @@ http://localhost:3001
 
 This backend is scoped to NCCU Applied Mathematics major graduation audit for academic years 111-114.
 
+## Authentication
+
+Public endpoints:
+
+```text
+GET  /api/health
+GET  /api/courses
+GET  /api/courses/:id
+GET  /api/curriculums
+GET  /api/curriculums/:year
+GET  /api/curriculums/:year/requirements
+POST /api/auth/register
+POST /api/auth/register-admin
+POST /api/auth/login
+POST /api/auth/forgot-password
+POST /api/auth/reset-password
+```
+
+All transcript, student-course, audit, admin, profile, and password endpoints require:
+
+```http
+Authorization: Bearer <JWT>
+```
+
+Login example:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:3001/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"account":"demo001","password":"demo1234"}' \
+  | node -e 'let data="";process.stdin.on("data",c=>data+=c);process.stdin.on("end",()=>console.log(JSON.parse(data).token));')
+
+DEMO_USER_ID=$(curl -s http://localhost:3001/api/auth/me \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e 'let data="";process.stdin.on("data",c=>data+=c);process.stdin.on("end",()=>console.log(JSON.parse(data).user.id));')
+```
+
+Admin login example:
+
+```bash
+ADMIN_TOKEN=$(curl -s -X POST http://localhost:3001/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"account":"admin","password":"admin1234"}' \
+  | node -e 'let data="";process.stdin.on("data",c=>data+=c);process.stdin.on("end",()=>console.log(JSON.parse(data).token));')
+```
+
+## Auth
+
+### GET `/api/auth/me`
+
+Returns the authenticated user's profile. Requires a Bearer token.
+
+### PATCH `/api/auth/profile`
+
+Updates the authenticated user's `name` and `email`. Requires a Bearer token.
+
+Request:
+
+```json
+{
+  "name": "示範使用者",
+  "email": "demo@nccu.edu.tw"
+}
+```
+
+### PATCH `/api/auth/password`
+
+Changes the authenticated user's password. Requires a Bearer token.
+
+Request:
+
+```json
+{
+  "currentPassword": "demo1234",
+  "newPassword": "new-demo-password"
+}
+```
+
 ## Health
 
 ### GET `/api/health`
@@ -113,11 +191,13 @@ ELECTIVE    45 other elective credits
 
 Imports NCCU transcript JSON into `student_courses`.
 
+Requires a student owner token or an admin token. For student tokens, the backend uses the authenticated user id even if a different `userId` is sent.
+
 Request:
 
 ```json
 {
-  "userId": 1,
+  "userId": 3,
   "sourceFilename": "transcript.json",
   "transcript": {}
 }
@@ -149,7 +229,7 @@ Response:
 ```json
 {
   "importId": 1,
-  "userId": 1,
+  "userId": 3,
   "studentNumber": "DEMO001",
   "studentName": "示範使用者",
   "coursePlanYear": "111",
@@ -165,11 +245,13 @@ Response:
 
 ## Student Courses
 
-### GET `/api/student-courses?userId=1`
+### GET `/api/student-courses?userId=<studentUserId>`
 
 Lists a user's imported and manual student-course rows.
 
-### GET `/api/student-courses/unresolved?userId=1`
+Requires the owner token or an admin token.
+
+### GET `/api/student-courses/unresolved?userId=<studentUserId>`
 
 Lists imported courses that could not be matched back to `data/courses.xlsx` by academic year, semester, and course code.
 
@@ -178,7 +260,8 @@ These rows have missing `department` or `course_category` and should be reviewed
 Example:
 
 ```bash
-curl 'http://localhost:3001/api/student-courses/unresolved?userId=1'
+curl "http://localhost:3001/api/student-courses/unresolved?userId=${DEMO_USER_ID}" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 Response shape:
@@ -200,13 +283,13 @@ Response shape:
 
 ### POST `/api/student-courses`
 
-Creates a manual student-course row. This endpoint is kept as a simple non-admin helper; for staff-approved adjustments prefer `/api/admin/manual-courses`.
+Creates a manual student-course row. This endpoint requires an admin token. Staff-approved adjustments should normally use `/api/admin/manual-courses`.
 
 Request:
 
 ```json
 {
-  "userId": 1,
+  "userId": 3,
   "courseCode": "MANUAL-FOREIGN-001",
   "courseName": "外文抵免",
   "credits": 3,
@@ -226,7 +309,39 @@ Request:
 
 ### DELETE `/api/student-courses/:id`
 
-Deletes one student-course row by id.
+Deletes one student-course row by id. This endpoint requires an admin token.
+
+## Admin Students
+
+### GET `/api/admin/students`
+
+Lists student accounts for the admin student-management page, including latest transcript upload status and unresolved-course counts. Requires an admin token.
+
+Example:
+
+```bash
+curl http://localhost:3001/api/admin/students \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+Response shape:
+
+```json
+{
+  "rows": [
+    {
+      "userId": 3,
+      "studentNumber": "DEMO001",
+      "studentName": "示範使用者",
+      "email": "demo@nccu.edu.tw",
+      "admissionYear": 111,
+      "latestUploadAt": "2026-05-20T00:00:00.000Z",
+      "hasTranscript": true,
+      "unresolvedCount": 5
+    }
+  ]
+}
+```
 
 ## Admin Manual Adjustments
 
@@ -247,13 +362,16 @@ special corrections approved by staff
 
 Creates or updates a manual row for the same user, course code, semester, and source.
 
+Requires an admin token.
+
 Example:
 
 ```bash
 curl -X POST http://localhost:3001/api/admin/manual-courses \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{
-    "userId": 1,
+    "userId": 3,
     "courseCode": "MANUAL-FOREIGN-001",
     "courseName": "外文抵免",
     "credits": 3,
@@ -295,11 +413,13 @@ Deletes a manual row. Transcript rows cannot be deleted through this endpoint.
 
 Runs the graduation audit.
 
+Requires the owner token or an admin token. Saved results are marked as `STUDENT` or `ADMIN` based on the authenticated user's current database role.
+
 Request:
 
 ```json
 {
-  "userId": 1,
+  "userId": 3,
   "academicYear": "111",
   "includeInProgress": false,
   "saveResult": true
@@ -342,7 +462,8 @@ Example:
 ```bash
 curl -X POST http://localhost:3001/api/audit/run \
   -H 'Content-Type: application/json' \
-  -d '{"userId":1,"academicYear":"111","includeInProgress":false,"saveResult":true}'
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{\"userId\":${DEMO_USER_ID},\"academicYear\":\"111\",\"includeInProgress\":false,\"saveResult\":true}"
 ```
 
 Response excerpt:
@@ -376,13 +497,27 @@ Response excerpt:
 
 ## Audit History
 
-### GET `/api/audit/history?userId=1&limit=20&offset=0`
+### GET `/api/audit/history?userId=<studentUserId>&limit=20&offset=0`
 
 Returns paginated audit history summaries. It excludes full `result_json` for performance.
+
+Student users only receive `STUDENT` audit history rows. Admin users receive all rows unless `visibleToStudent=true` or `auditSource=STUDENT` is supplied.
+
+### GET `/api/audit/latest?userId=<studentUserId>`
+
+Returns the latest saved audit result for the user, including admin-saved results. The frontend result page uses this endpoint so students can see the latest approved/admin-adjusted result without exposing admin history rows in their history list.
 
 ### GET `/api/audit/history/:id`
 
 Returns one full audit result, including `result_json`.
+
+### PATCH `/api/audit/history/:id`
+
+Renames an audit history row with `{ "auditName": "..." }`. Student users can only rename their own `STUDENT` audit rows; admins can rename accessible rows.
+
+### DELETE `/api/audit/history/:id`
+
+Deletes an audit history row. Student users can only delete their own `STUDENT` audit rows; admins can delete accessible rows.
 
 ## Graduation Rule Summary
 

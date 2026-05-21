@@ -24,6 +24,19 @@ export type RegisterRequest = {
   admission_year: number;
 };
 
+export type ForgotPasswordRequest = { email: string };
+export type ResetPasswordRequest = { token: string; password: string };
+export type UpdateProfileRequest = { name: string; email: string };
+export type ChangePasswordRequest = { currentPassword: string; newPassword: string };
+
+export type AdminRegisterRequest = {
+  username: string;
+  name: string;
+  email: string;
+  password: string;
+  admin_secret: string;
+};
+
 export type AuthResponse = {
   token: string;
   user: DemoUser;
@@ -88,6 +101,7 @@ export type AuditRunRequest = {
   academicYear: string;
   includeInProgress: boolean;
   saveResult: boolean;
+  auditSource?: "STUDENT" | "ADMIN";
 };
 
 export type AuditResult = {
@@ -157,6 +171,8 @@ export type AuditHistoryRow = {
   user_id: number;
   curriculum_id: number;
   transcript_import_id: number | null;
+  audit_name?: string | null;
+  audit_source?: "STUDENT" | "ADMIN";
   total_credits_earned: string | number;
   total_required_credits: string | number;
   progress_percentage: string | number;

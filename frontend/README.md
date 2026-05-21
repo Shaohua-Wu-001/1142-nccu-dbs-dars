@@ -20,14 +20,14 @@ Backend:  http://localhost:3001
 
 ## Current Auth Scope
 
-The login and register pages are frontend-only demo flows in this phase. The existing backend does not yet provide real auth endpoints, password hashing, JWT, sessions, or role middleware.
+The frontend uses backend auth endpoints for login, registration, profile updates, password changes, forgot-password, and reset-password flows. The API client stores the JWT in localStorage and sends it as a Bearer token on API requests.
 
-Student and admin navigation is handled in frontend state. Backend API calls still use the current `userId`-based API contract.
+Student and admin navigation is controlled in frontend state for routing, but backend authorization is enforced by JWT validation plus database role and owner checks.
 
 ## Main Flows
 
-- Student: login/register demo flow, import transcript JSON, view courses, run audit, view results and history.
-- Admin: inspect unresolved courses, create manual adjustments, query courses, query requirements, inspect audit history.
+- Student: login/register, import transcript JSON, view courses, run audit, view results, rename/delete own visible audit history, and update profile/password.
+- Admin: inspect students and upload status, inspect unresolved courses, create/edit/delete manual adjustments, query courses, query requirements, inspect audit history, and update profile/password.
 
 ## Verification
 

@@ -255,6 +255,49 @@ test("audit engine prefers APPROVED substitution over TRANSCRIPT when same cours
   assert.equal(required.completedRules[0].recognitionType, "APPROVED_SUBSTITUTION");
 });
 
+test("audit engine prefers approved manual general recognition over larger unresolved transcript credits", () => {
+  const result = runAudit({
+    curriculum: {
+      total_required_credits: 128,
+      program_type: "MAJOR",
+      department: "應用數學系",
+      AcademicYear: { year_code: 111 }
+    },
+    requirementGroups: [
+      { id: 1, group_code: "GENERAL", group_name: "通識", min_credits: 28, display_order: 1 }
+    ],
+    requirementRules: [],
+    studentCourses: [
+      {
+        course_code: "046001101",
+        course_name: "程式設計概論",
+        credits: 4,
+        course_category: null,
+        status: "PASSED",
+        source: "TRANSCRIPT_JSON",
+        recognition_type: "ORIGINAL",
+        approval_status: "NOT_REQUIRED"
+      },
+      {
+        course_code: "046001101",
+        course_name: "程式設計概論",
+        credits: 3,
+        course_category: "通識-資訊",
+        status: "PASSED",
+        source: "MANUAL",
+        recognition_type: "MANUAL_CREDIT",
+        approval_status: "APPROVED"
+      }
+    ],
+    generalCourses: []
+  });
+
+  const general = result.groups.find((group) => group.groupCode === "GENERAL");
+  assert.equal(general.earnedCredits, 3);
+  assert.equal(general.courses[0].courseCode, "046001101");
+  assert.equal(general.courses[0].category, "通識-資訊");
+});
+
 test("audit engine keeps official transcript total as reference but uses category-sum graduation credits", () => {
   const result = runAudit({
     curriculum: {

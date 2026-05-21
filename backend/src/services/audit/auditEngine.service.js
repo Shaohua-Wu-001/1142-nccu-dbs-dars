@@ -23,10 +23,11 @@ function uniquePassedCourses(studentCourses, includeInProgress = false) {
     const current = byCode.get(code);
     const candidateCredits = toNumber(course.credits);
     const currentCredits = current ? toNumber(current.credits) : -1;
-    const approvedOverride = candidateCredits === currentCredits
-      && course.approval_status === "APPROVED"
-      && current?.approval_status !== "APPROVED";
-    if (!current || candidateCredits > currentCredits || approvedOverride) {
+    const candidateApproved = course.approval_status === "APPROVED";
+    const currentApproved = current?.approval_status === "APPROVED";
+    const approvedOverride = candidateApproved && !currentApproved;
+    const higherCreditOverride = !currentApproved && candidateCredits > currentCredits;
+    if (!current || approvedOverride || higherCreditOverride) {
       byCode.set(code, course);
     }
   }

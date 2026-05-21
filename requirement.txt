@@ -41,9 +41,9 @@ frontend/package-lock.json
 管理員可以：
 
 - 登入管理員端。
-- 指定要查看的學生 userId。
+- 查看目前學生帳號、上傳狀態、待確認課程數與完整成績單。
 - 查看待人工確認課程。
-- 新增人工認列、抵免或替代課程。
+- 新增、修改、刪除人工認列、抵免或替代課程。
 - 查詢課程資料。
 - 查詢畢業規則。
 - 查看學生審核歷史。
@@ -150,7 +150,9 @@ POST /api/audit/run
 
 ```text
 GET /api/student-courses/unresolved
+GET /api/admin/students
 POST /api/admin/manual-courses
+PATCH /api/admin/manual-courses/:id
 DELETE /api/admin/manual-courses/:id
 ```
 
@@ -159,6 +161,7 @@ DELETE /api/admin/manual-courses/:id
 需求：
 
 - 學生可以看自己的歷史紀錄。
+- 學生可以命名或刪除自己的可見歷史紀錄。
 - 管理員可以看指定學生的歷史紀錄。
 - 管理員頁面預設顯示最新審核結果。
 
@@ -167,6 +170,8 @@ DELETE /api/admin/manual-courses/:id
 ```text
 GET /api/audit/history
 GET /api/audit/history/:id
+PATCH /api/audit/history/:id
+DELETE /api/audit/history/:id
 ```
 
 ## 四、非功能需求
@@ -339,10 +344,10 @@ data/transcript.json
 
 目前版本限制：
 
-- 登入/註冊是前端展示，不是正式帳號系統。
-- 管理員角色還沒有後端權限 middleware。
-- CORS 目前全開。
-- Docker Compose 使用 demo 資料庫帳密。
+- 系統已具備後端註冊、登入、JWT 驗證與角色/資料擁有者權限檢查。
+- 管理員 API 已套用 `requireAuth` 與 `requireAdmin` middleware。
+- CORS 依 `FRONTEND_URL` 設定允許來源；正式部署仍需檢查實際網域與 HTTPS。
+- Docker Compose 使用本機 `.env` 設定；正式部署不可使用 demo 或弱密碼。
 - 審核結果是依本專案規則計算，不等於學校正式畢業審查。
 
 ## 十二、GitHub 上傳需求
@@ -369,6 +374,9 @@ performance/
 ```text
 node_modules/
 dist/
+.env
+.env.*
+!.env.example
 backend/.env
 .DS_Store
 *.log

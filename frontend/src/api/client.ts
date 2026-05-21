@@ -45,6 +45,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     signal: options.signal
   });
 
+  if (response.status === 401 && token) {
+    clearToken();
+    localStorage.removeItem("nccu-user");
+    localStorage.removeItem("nccu-target-user-id");
+    window.location.href = "/login";
+    return undefined as T;
+  }
+
   if (response.status === 204) {
     return undefined as T;
   }

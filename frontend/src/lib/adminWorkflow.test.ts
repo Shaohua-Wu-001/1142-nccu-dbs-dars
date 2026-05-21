@@ -29,7 +29,7 @@ const baseCourse: StudentCourse = {
 describe("admin workflow helpers", () => {
   it("builds a manual-course link that pre-fills unresolved course data", () => {
     expect(buildManualCourseLink(baseCourse)).toBe(
-      "/admin/manual-courses?courseCode=046001101&courseName=%E7%A8%8B%E5%BC%8F%E8%A8%AD%E8%A8%88%E6%A6%82%E8%AB%96&credits=3&academicYear=111&semester=1&remark=%E8%B3%87%E8%A8%8A%E8%B6%85%E4%BF%AE%E5%AD%B8%E5%88%86%E4%B8%8D%E5%BE%97%E6%8E%A1%E8%A8%88%E7%82%BA%E7%95%A2%E6%A5%AD%E5%AD%B8%E5%88%86"
+      "/admin/manual-courses?courseCode=046001101&courseName=%E7%A8%8B%E5%BC%8F%E8%A8%AD%E8%A8%88%E6%A6%82%E8%AB%96&credits=3&academicYear=111&semester=1&sourceCourseId=9&score=85&remark=%E8%B3%87%E8%A8%8A%E8%B6%85%E4%BF%AE%E5%AD%B8%E5%88%86%E4%B8%8D%E5%BE%97%E6%8E%A1%E8%A8%88%E7%82%BA%E7%95%A2%E6%A5%AD%E5%AD%B8%E5%88%86"
     );
   });
 

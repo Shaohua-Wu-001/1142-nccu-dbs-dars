@@ -1,10 +1,12 @@
+name: nccudars
+
 services:
   mysql:
     image: mysql:8
     container_name: nccu-ams-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: nccu_credit_checker
+      MYSQL_DATABASE: ${DB_NAME}
     ports:
       - "3307:3306"
     volumes:
@@ -26,14 +28,20 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      PORT: 3001
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_NAME: nccu_credit_checker
+      PORT: ${PORT:-3001}
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      DB_LOGGING: "false"
+      DB_LOGGING: ${DB_LOGGING:-false}
       JWT_SECRET: ${JWT_SECRET}
+      ADMIN_SECRET: ${ADMIN_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL}
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT}
+      EMAIL_USER: ${EMAIL_USER}
+      EMAIL_PASS: ${EMAIL_PASS}
 
 volumes:
   mysql_data:

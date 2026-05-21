@@ -33,13 +33,51 @@ export const options = {
 };
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:3001";
-const DEMO_USER_ID = Number(__ENV.DEMO_USER_ID || 1);
-const FULL_FLOW_USER_ID = Number(__ENV.FULL_FLOW_USER_ID || __ENV.K6_USER_ID || 2);
+const DEMO_USER_ID = __ENV.DEMO_USER_ID ? Number(__ENV.DEMO_USER_ID) : null;
+const FULL_FLOW_USER_ID = __ENV.FULL_FLOW_USER_ID || __ENV.K6_USER_ID
+  ? Number(__ENV.FULL_FLOW_USER_ID || __ENV.K6_USER_ID)
+  : null;
 const DEMO_ACADEMIC_YEAR = __ENV.DEMO_ACADEMIC_YEAR || "111";
-const HEADERS = { "Content-Type": "application/json" };
+const DEMO_ACCOUNT = __ENV.DEMO_ACCOUNT || "demo001";
+const DEMO_PASSWORD = __ENV.DEMO_PASSWORD || "demo1234";
+const K6_ACCOUNT = __ENV.K6_ACCOUNT || "k6demo";
+const K6_PASSWORD = __ENV.K6_PASSWORD || "k6demo1234";
 const transcript = JSON.parse(open("../data/transcript.json"));
 
-export function queryBrowsing() {
+function login(account, password) {
+  const response = http.post(
+    `${BASE_URL}/api/auth/login`,
+    JSON.stringify({ account, password }),
+    { headers: { "Content-Type": "application/json" } }
+  );
+  check(response, { [`login ${account} is 200`]: (r) => r.status === 200 });
+  return {
+    token: String(response.json("token") || ""),
+    userId: Number(response.json("user.id"))
+  };
+}
+
+function authHeaders(token) {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`
+  };
+}
+
+export function setup() {
+  const demo = login(DEMO_ACCOUNT, DEMO_PASSWORD);
+  const k6 = login(K6_ACCOUNT, K6_PASSWORD);
+  return {
+    demoToken: demo.token,
+    demoUserId: DEMO_USER_ID || demo.userId,
+    k6Token: k6.token,
+    fullFlowUserId: FULL_FLOW_USER_ID || k6.userId
+  };
+}
+
+export function queryBrowsing(data) {
+  const headers = authHeaders(data.demoToken);
+  const demoUserId = data.demoUserId;
   const health = http.get(`${BASE_URL}/api/health`);
   check(health, { "health is 200": (r) => r.status === 200 });
 
@@ -49,22 +87,24 @@ export function queryBrowsing() {
   const requirements = http.get(`${BASE_URL}/api/curriculums/${DEMO_ACADEMIC_YEAR}/requirements`);
   check(requirements, { "requirements is 200": (r) => r.status === 200 });
 
-  const history = http.get(`${BASE_URL}/api/audit/history?userId=${DEMO_USER_ID}&limit=10`);
+  const history = http.get(`${BASE_URL}/api/audit/history?userId=${demoUserId}&limit=10`, { headers });
   check(history, { "history is 200": (r) => r.status === 200 });
 
   sleep(1);
 }
 
-export function auditChecking() {
+export function auditChecking(data) {
+  const headers = authHeaders(data.demoToken);
+  const demoUserId = data.demoUserId;
   const audit = http.post(
     `${BASE_URL}/api/audit/run`,
     JSON.stringify({
-      userId: DEMO_USER_ID,
+      userId: demoUserId,
       academicYear: DEMO_ACADEMIC_YEAR,
       includeInProgress: false,
       saveResult: false
     }),
-    { headers: HEADERS }
+    { headers }
   );
 
   check(audit, {
@@ -88,15 +128,17 @@ export function auditChecking() {
   sleep(1);
 }
 
-export function fullUserFlow() {
+export function fullUserFlow(data) {
+  const headers = authHeaders(data.k6Token);
+  const fullFlowUserId = data.fullFlowUserId;
   const importResponse = http.post(
     `${BASE_URL}/api/transcripts/import`,
     JSON.stringify({
-      userId: FULL_FLOW_USER_ID,
+      userId: fullFlowUserId,
       sourceFilename: "k6-transcript.json",
       transcript
     }),
-    { headers: HEADERS }
+    { headers }
   );
   check(importResponse, {
     "transcript import is 201": (r) => r.status === 201,
@@ -112,12 +154,12 @@ export function fullUserFlow() {
   const audit = http.post(
     `${BASE_URL}/api/audit/run`,
     JSON.stringify({
-      userId: FULL_FLOW_USER_ID,
+      userId: fullFlowUserId,
       academicYear: DEMO_ACADEMIC_YEAR,
       includeInProgress: false,
       saveResult: true
     }),
-    { headers: HEADERS }
+    { headers }
   );
   check(audit, {
     "full flow audit is 201": (r) => r.status === 201,
@@ -130,7 +172,7 @@ export function fullUserFlow() {
     }
   });
 
-  const history = http.get(`${BASE_URL}/api/audit/history?userId=${FULL_FLOW_USER_ID}&limit=1`);
+  const history = http.get(`${BASE_URL}/api/audit/history?userId=${fullFlowUserId}&limit=1`, { headers });
   check(history, {
     "full flow history is 200": (r) => r.status === 200,
     "full flow history has row": (r) => {

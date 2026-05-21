@@ -1,7 +1,7 @@
-import { ChangeEvent, type ReactNode, useMemo, useState } from "react";
+import { ChangeEvent, type FormEvent, type MouseEvent, type ReactNode, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Award, BarChart3, BookOpen, ClipboardCheck, Download, ExternalLink, FileInput, GraduationCap, History, Info, Sparkles } from "lucide-react";
-import { useAuditHistory, useImportTranscript, useRunAudit, useStudentCourses } from "../api/hooks";
+import { ArrowRight, Award, BarChart3, BookOpen, Check, ChevronDown, ClipboardCheck, Download, ExternalLink, FileInput, GraduationCap, History, Info, Sparkles, Trash2 } from "lucide-react";
+import { useAuditHistory, useAuditHistoryDetail, useDeleteAuditHistory, useImportTranscript, useLatestAuditResult, useRunAudit, useStudentCourses, useUnresolvedCourses, useUpdateAuditHistoryName } from "../api/hooks";
 import { AuditResultView } from "../components/AuditResultView";
 import { MetricTile } from "../components/MetricTile";
 import { PageHeader } from "../components/PageHeader";
@@ -33,6 +33,162 @@ function semesterLabel(summary: SemesterAcademicSummary) {
   return `${summary.academicYear}-${summary.semester}`;
 }
 
+function semesterSortValue(summary: SemesterAcademicSummary) {
+  return Number(`${summary.academicYear}${summary.semester}`) || 0;
+}
+
+function parseNumber(value?: string | number | null) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function rankingParts(value?: string) {
+  if (!value) return null;
+  const match = value.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+  if (!match) return null;
+  const rank = Number(match[1]);
+  const total = Number(match[2]);
+  if (!Number.isFinite(rank) || !Number.isFinite(total) || total <= 0) return null;
+  return { rank, total };
+}
+
+function rankingPerformance(value?: string) {
+  const parts = rankingParts(value);
+  if (!parts) return null;
+  return ((parts.total - parts.rank + 1) / parts.total) * 100;
+}
+
+function scaleSeries(values: number[], top = 44, bottom = 164) {
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min || 1;
+  return (value: number) => bottom - ((value - min) / range) * (bottom - top);
+}
+
+function TrendChartCard({ title, meta, ariaLabel, values, valueLabel, lineColor, markerColor, dashed = false }: {
+  title: string;
+  meta: string;
+  ariaLabel: string;
+  values: Array<{ label: string; value: number; display: string }>;
+  valueLabel: string;
+  lineColor: string;
+  markerColor: string;
+  dashed?: boolean;
+}) {
+  if (values.length < 2) return <p className="text-sm font-semibold text-slate-500">{title}至少需要兩個學期才會顯示折線趨勢。</p>;
+  const chart = { width: 920, height: 320, left: 76, right: 844, top: 72, bottom: 232 };
+  const yOf = scaleSeries(values.map((item) => item.value), chart.top, chart.bottom);
+  const xOf = (index: number) => chart.left + (index * (chart.right - chart.left)) / (values.length - 1);
+  const points = values.map((item, index) => ({ ...item, x: xOf(index), y: yOf(item.value) }));
+  const polyline = points.map((point) => `${point.x},${point.y}`).join(" ");
+
+  return (
+    <div className="rounded-3xl border border-slate-100 bg-white px-4 py-4 shadow-sm shadow-blue-950/5">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span className="inline-flex items-center gap-2 text-sm font-black text-navy-950">
+          <span className="h-3 w-8 rounded-full" style={{ backgroundColor: lineColor }} />
+          {title}
+        </span>
+        <p className="text-[11px] font-bold text-slate-500 sm:text-sm">{meta}</p>
+      </div>
+      <div className="relative w-full overflow-hidden">
+        <svg
+          className="h-auto w-full"
+          viewBox={`0 0 ${chart.width} ${chart.height}`}
+          preserveAspectRatio="xMidYMid meet"
+          role="img"
+          aria-label={ariaLabel}
+        >
+          {[chart.top, (chart.top + chart.bottom) / 2, chart.bottom].map((y) => (
+            <line key={y} x1={chart.left} x2={chart.right} y1={y} y2={y} stroke="#e6edf5" strokeWidth="2" />
+          ))}
+          <polyline fill="none" points={polyline} stroke={lineColor} strokeLinecap="round" strokeLinejoin="round" strokeWidth="8" strokeDasharray={dashed ? "12 10" : undefined} />
+          {points.map((point) => (
+            <g key={`${title}-${point.label}`}>
+              <circle cx={point.x} cy={point.y} fill={markerColor} r="10" />
+              <text fill="#0b1d38" fontSize="20" fontWeight="900" textAnchor="middle" x={point.x} y={point.y < chart.top + 22 ? point.y + 36 : point.y - 20}>{point.display}</text>
+              <text fill="#64748b" fontSize="18" fontWeight="900" textAnchor="middle" x={point.x} y="295">{point.label}</text>
+            </g>
+          ))}
+          <text fill="#94a3b8" fontSize="14" fontWeight="800" x={chart.left} y="32">{valueLabel}</text>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function letterGrade(score?: string | null) {
+  const numeric = parseNumber(score);
+  if (numeric === null) return undefined;
+  if (numeric >= 90) return "A+";
+  if (numeric >= 85) return "A";
+  if (numeric >= 80) return "A-";
+  if (numeric >= 77) return "B+";
+  if (numeric >= 73) return "B";
+  if (numeric >= 70) return "B-";
+  if (numeric >= 67) return "C+";
+  if (numeric >= 63) return "C";
+  if (numeric >= 60) return "C-";
+  if (numeric >= 50) return "D";
+  if (numeric >= 1) return "E";
+  return "X";
+}
+
+function formatScoreWithLetter(score?: string | null) {
+  if (!score) return "—";
+  const grade = letterGrade(score);
+  return grade ? `${score} / ${grade}` : score;
+}
+
+function SemesterTrendChart({ summaries }: { summaries: SemesterAcademicSummary[] }) {
+  const data = summaries
+    .map((summary) => ({
+      summary,
+      score: parseNumber(summary.averageScore),
+      rankPerformance: rankingPerformance(summary.departmentRanking || summary.classRanking)
+    }))
+    .filter((item): item is { summary: SemesterAcademicSummary; score: number; rankPerformance: number | null } => item.score !== null)
+    .sort((a, b) => semesterSortValue(a.summary) - semesterSortValue(b.summary));
+  if (data.length < 2) return <p className="text-sm font-semibold text-slate-500">至少需要兩個學期才會顯示折線趨勢。</p>;
+
+  const scores = data.map((item) => item.score);
+  const max = Math.max(...scores);
+  const min = Math.min(...scores);
+  const scoreData = data.map((item) => ({ label: semesterLabel(item.summary), value: item.score, display: item.score.toFixed(1) }));
+
+  const rankData = data
+    .filter((item): item is typeof item & { rankPerformance: number } => item.rankPerformance !== null)
+    .map((item) => ({
+      label: semesterLabel(item.summary),
+      value: item.rankPerformance,
+      display: item.summary.departmentRanking || item.summary.classRanking || item.rankPerformance.toFixed(1)
+    }));
+
+  const firstRank = rankData[0];
+  const lastRank = rankData[rankData.length - 1];
+  const improvement = rankData.length >= 2 ? lastRank.value - firstRank.value : 0;
+
+  let rankTrendText = "排名資料不足";
+  if (rankData.length >= 2) {
+    const absDiff = Math.abs(improvement).toFixed(1);
+    if (improvement > 0) {
+      rankTrendText = `從 ${firstRank.display} 進步到 ${lastRank.display}，表現躍升 ${absDiff}%`;
+    } else if (improvement < 0) {
+      rankTrendText = `從 ${firstRank.display} 下滑到 ${lastRank.display}，表現下降 ${absDiff}%`;
+    } else {
+      rankTrendText = `排名穩定維持在 ${lastRank.display}`;
+    }
+  }
+
+  return (
+    <div className="grid gap-4">
+      <TrendChartCard title="平均成績趨勢" meta={`最低 ${min.toFixed(2)} / 最高 ${max.toFixed(2)}`} ariaLabel="平均成績折線圖" values={scoreData} valueLabel="Average Score" lineColor="#0a3a75" markerColor="#C5A059" />
+      <TrendChartCard title="排名表現趨勢" meta={rankTrendText} ariaLabel="排名表現折線圖" values={rankData} valueLabel="Ranking Performance" lineColor="#C5A059" markerColor="#0a3a75" dashed />
+    </div>
+  );
+}
+
 function InfoTip({ label, text }: { label: string; text: string }) {
   return (
     <span className="group relative inline-flex align-middle">
@@ -44,7 +200,7 @@ function InfoTip({ label, text }: { label: string; text: string }) {
       >
         <Info className="h-3.5 w-3.5" />
       </button>
-      <span className="pointer-events-none absolute left-1/2 top-7 z-20 hidden w-72 -translate-x-1/2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold leading-5 text-slate-600 shadow-xl shadow-blue-950/10 group-hover:block">
+      <span className="pointer-events-none absolute left-0 top-7 z-[60] hidden w-72 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold leading-5 text-slate-600 shadow-xl shadow-blue-950/10 group-hover:block">
         {text}
       </span>
     </span>
@@ -52,18 +208,30 @@ function InfoTip({ label, text }: { label: string; text: string }) {
 }
 
 function SemesterSummaryStrip({ summaries }: { summaries?: SemesterAcademicSummary[] }) {
+  const [showChart, setShowChart] = useState(true);
   if (!summaries?.length) return null;
   return (
     <section className="mb-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm shadow-blue-950/5">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-50 text-navy-800">
-          <BarChart3 className="h-5 w-5" />
-        </div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-50 text-navy-800">
+            <BarChart3 className="h-5 w-5" />
+          </div>
         <div>
           <h2 className="font-serif text-xl font-bold text-navy-950">學期成績摘要</h2>
           <p className="text-sm font-medium text-slate-500">由 transcript JSON 的 averageScoreList 解析</p>
         </div>
+        </div>
+        <button
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-navy-900 transition hover:bg-blue-50"
+          onClick={() => setShowChart((value) => !value)}
+          type="button"
+        >
+          {showChart ? "收合趨勢圖" : "查看趨勢圖"}
+          <ChevronDown className={`h-4 w-4 transition ${showChart ? "rotate-180" : ""}`} />
+        </button>
       </div>
+      {showChart ? <div className="mb-4"><SemesterTrendChart summaries={summaries} /></div> : null}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {summaries.map((summary) => (
           <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4" key={summary.academicYearSemester}>
@@ -86,7 +254,7 @@ function SemesterSummaryStrip({ summaries }: { summaries?: SemesterAcademicSumma
 
 export function StudentDashboard() {
   const { currentUser, studentProfile } = useAppState();
-  const history = useAuditHistory(currentUser.id);
+  const history = useAuditHistory(currentUser.id, { visibleToStudent: true });
   const studentName = studentProfile?.studentName || currentUser.name;
   const studentNumber = studentProfile?.studentNumber || currentUser.student_number;
   const latestAudit = useMemo(() => (history.data?.rows || []).reduce((current, row) => {
@@ -276,25 +444,34 @@ export function StudentCoursesPage() {
       <SemesterSummaryStrip summaries={studentProfile?.semesterSummaries} />
       {rows.length ? (
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
-              <tr><th className="px-3 py-2">學年期</th><th className="px-3 py-2">課號</th><th className="px-3 py-2">課名</th><th className="px-3 py-2">學分</th><th className="px-3 py-2">成績</th><th className="px-3 py-2">狀態</th><th className="px-3 py-2">來源</th><th className="px-3 py-2">認列</th></tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {rows.map((course) => (
-                <tr key={course.id}>
-                  <td className="px-3 py-2">{course.academic_year_semester}</td>
-                  <td className="px-3 py-2 font-semibold text-navy-800">{course.course_code}</td>
-                  <td className="px-3 py-2">{course.course_name}</td>
-                  <td className="px-3 py-2">{formatCredits(course.credits)}</td>
-                  <td className="px-3 py-2 font-semibold text-navy-900">{course.score || "—"}</td>
-                  <td className="px-3 py-2"><StatusBadge value={course.status} /></td>
-                  <td className="px-3 py-2"><StatusBadge value={course.source} /></td>
-                  <td className="px-3 py-2"><StatusBadge value={course.recognition_type} /></td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                <tr>
+                  <th className="whitespace-nowrap px-3 py-2">學年期</th>
+                  <th className="whitespace-nowrap px-3 py-2">課號</th>
+                  <th className="whitespace-nowrap px-3 py-2">課名</th>
+                  <th className="whitespace-nowrap px-3 py-2">學分</th>
+                  <th className="whitespace-nowrap px-3 py-2">成績/等第</th>
+                  <th className="whitespace-nowrap px-3 py-2">狀態</th>
+                  <th className="whitespace-nowrap px-3 py-2">來源</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((course) => (
+                  <tr key={course.id}>
+                    <td className="whitespace-nowrap px-3 py-2">{course.academic_year_semester}</td>
+                    <td className="whitespace-nowrap px-3 py-2 font-semibold text-navy-800">{course.course_code}</td>
+                    <td className="whitespace-nowrap px-3 py-2">{course.course_name}</td>
+                    <td className="whitespace-nowrap px-3 py-2">{formatCredits(course.credits)}</td>
+                    <td className="whitespace-nowrap px-3 py-2 font-semibold text-navy-900">{formatScoreWithLetter(course.score)}</td>
+                    <td className="whitespace-nowrap px-3 py-2"><StatusBadge value={course.status} /></td>
+                    <td className="whitespace-nowrap px-3 py-2"><StatusBadge value={course.source} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : !courses.isLoading ? <EmptyState title="尚無修課資料" description="請先匯入 transcript JSON。" /> : null}
     </div>
@@ -303,7 +480,11 @@ export function StudentCoursesPage() {
 
 export function AuditRunPage() {
   const { currentUser, setLastAuditResult } = useAppState();
-  const [academicYear, setAcademicYear] = useState("111");
+  const validYears = ["111", "112", "113", "114"];
+  const defaultYear = validYears.includes(String(currentUser.admission_year))
+    ? String(currentUser.admission_year)
+    : "111";
+  const [academicYear, setAcademicYear] = useState(defaultYear);
   const [includeInProgress, setIncludeInProgress] = useState(false);
   const [saveResult, setSaveResult] = useState(true);
   const mutation = useRunAudit();
@@ -321,7 +502,7 @@ export function AuditRunPage() {
   return (
     <div>
       <PageHeader title="執行畢業審核" description="正式結果只採計已通過課程；修課中課程只會出現在預估結果。" />
-      <div className="max-w-xl rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="w-full rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-4">
           <label className="text-sm font-semibold text-slate-700">學年度
             <InfoTip label="學年度說明" text="依你的入學年度或適用畢業規則年度選擇；例如 111 入學就選 111。" />
@@ -353,36 +534,128 @@ export function AuditRunPage() {
 }
 
 export function AuditResultPage() {
-  const { lastAuditResult, studentProfile } = useAppState();
+  const { lastAuditResult, studentProfile, currentUser } = useAppState();
+  const latestAudit = useLatestAuditResult(currentUser.id);
+  const unresolved = useUnresolvedCourses(currentUser.id);
+  const latestRow = latestAudit.data ?? null;
+  const latestSavedResult = latestRow?.result_json ?? null;
+  const result = useMemo(() => {
+    if (!latestSavedResult) return lastAuditResult;
+    if (!lastAuditResult) return latestSavedResult;
+    if (lastAuditResult.saved === false) return lastAuditResult;
+
+    const lastAuditId = lastAuditResult.auditId ?? null;
+    if (!lastAuditId) return latestSavedResult;
+    return latestRow && latestRow.id >= lastAuditId ? latestSavedResult : lastAuditResult;
+  }, [lastAuditResult, latestRow, latestSavedResult]);
+  const isLoading = latestAudit.isLoading;
+
   return (
     <div>
       <PageHeader title="畢業審核結果" description="依後端 audit engine 回傳資料呈現，不顯示不存在的 GPA 或登入權限指標。" />
-      {lastAuditResult ? <AuditResultView result={lastAuditResult} studentProfile={studentProfile} /> : <EmptyState title="尚未執行審核" description="請先前往執行畢業審核頁。" />}
+      {isLoading ? <LoadingState /> : null}
+      {!isLoading && result ? <AuditResultView result={result} studentProfile={studentProfile} unresolvedCourses={unresolved.data?.rows ?? []} /> : null}
+      {!isLoading && !result ? <EmptyState title="尚未執行審核" description="請先前往執行畢業審核頁。" /> : null}
     </div>
   );
 }
 
 export function AuditHistoryPage() {
-  const { currentUser, setLastAuditResult } = useAppState();
-  const history = useAuditHistory(currentUser.id);
+  const { currentUser, studentProfile } = useAppState();
+  const [selectedAuditId, setSelectedAuditId] = useState<number | null>(null);
+  const [editingNameById, setEditingNameById] = useState<Record<number, string>>({});
+  const history = useAuditHistory(currentUser.id, { visibleToStudent: true });
+  const deleteAudit = useDeleteAuditHistory(currentUser.id);
+  const updateAuditName = useUpdateAuditHistoryName(currentUser.id);
+  const detail = useAuditHistoryDetail(selectedAuditId);
+  const selectedRow = history.data?.rows.find((row) => row.id === selectedAuditId);
+  const selectedResult = selectedRow?.result_json || detail.data?.result_json || null;
+
+  function handleDelete(event: MouseEvent<HTMLButtonElement>, id: number) {
+    event.stopPropagation();
+    if (!confirm(`確定要刪除 Audit #${id} 嗎？`)) return;
+    deleteAudit.mutate(id, {
+      onSuccess: () => {
+        setSelectedAuditId((current) => (current === id ? null : current));
+      }
+    });
+  }
+
+  function handleNameSubmit(event: FormEvent<HTMLFormElement>, rowId: number) {
+    event.preventDefault();
+    const fallback = history.data?.rows.find((row) => row.id === rowId)?.audit_name ?? "";
+    const auditName = editingNameById[rowId] ?? fallback;
+    updateAuditName.mutate({ id: rowId, auditName });
+  }
+
   return (
     <div>
-      <PageHeader title="我的審核歷史" />
+      <PageHeader title="我的審核歷史" description="點選任一筆紀錄即可展開當次審核結果。" />
       {history.isLoading ? <LoadingState /> : null}
       {history.error ? <ErrorState message={history.error.message} /> : null}
       {history.data?.rows.length ? (
         <div className="grid gap-3">
+          {deleteAudit.error ? <ErrorState message={deleteAudit.error.message} /> : null}
+          {updateAuditName.error ? <ErrorState message={updateAuditName.error.message} /> : null}
           {history.data.rows.map((row) => (
-            <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between" key={row.id}>
-              <div>
-                <p className="font-bold text-navy-900">Audit #{row.id}</p>
-                <p className="text-sm text-slate-500">{new Date(row.created_at).toLocaleString()}</p>
+            <div className="rounded-lg border border-slate-200 bg-white shadow-sm" key={row.id}>
+              <div className={`flex flex-col gap-3 p-4 transition md:flex-row md:items-center md:justify-between ${selectedAuditId === row.id ? "bg-blue-50/60" : ""}`}>
+                <button
+                  className="min-w-0 flex-1 text-left"
+                  onClick={() => setSelectedAuditId((current) => (current === row.id ? null : row.id))}
+                  type="button"
+                >
+                  <p className="font-bold text-navy-900">{row.audit_name || `Audit #${row.id}`}</p>
+                  <p className="text-sm text-slate-500">{new Date(row.created_at).toLocaleString()}</p>
+                </button>
+                <div className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-700 md:justify-end">
+                  <form className="flex min-w-[220px] items-center gap-2" onSubmit={(event) => handleNameSubmit(event, row.id)}>
+                    <input
+                      className="h-9 w-44 rounded-md border border-slate-200 bg-white px-3 text-xs font-bold text-navy-900 outline-none placeholder:text-slate-400 focus:border-navy-400 focus:ring-2 focus:ring-blue-100"
+                      maxLength={120}
+                      onChange={(event) => setEditingNameById((current) => ({ ...current, [row.id]: event.target.value }))}
+                      placeholder={`Audit #${row.id}`}
+                      value={editingNameById[row.id] ?? row.audit_name ?? ""}
+                    />
+                    <button
+                      className="inline-flex h-9 items-center gap-1 rounded-md border border-emerald-100 bg-emerald-50 px-2.5 text-xs font-black text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+                      disabled={updateAuditName.isPending}
+                      type="submit"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      儲存
+                    </button>
+                  </form>
+                  <button
+                    className="inline-flex items-center gap-4 text-left transition hover:text-navy-900"
+                    onClick={() => setSelectedAuditId((current) => (current === row.id ? null : row.id))}
+                    type="button"
+                  >
+                    <span>採計 {formatCredits(row.total_credits_earned)} / {formatCredits(row.total_required_credits)}</span>
+                    <span>{formatCredits(row.progress_percentage)}%</span>
+                    <span className="inline-flex items-center gap-1 text-navy-800">
+                      {selectedAuditId === row.id ? "收合結果" : "查看結果"}
+                      <ChevronDown className={`h-4 w-4 transition ${selectedAuditId === row.id ? "rotate-180" : ""}`} />
+                    </span>
+                  </button>
+                  <button
+                    className="inline-flex items-center gap-1 rounded-md border border-red-100 bg-white px-2.5 py-1.5 text-xs font-black text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                    disabled={deleteAudit.isPending}
+                    onClick={(event) => handleDelete(event, row.id)}
+                    type="button"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    刪除
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-6 text-sm">
-                <span>採計 {formatCredits(row.total_credits_earned)} / {formatCredits(row.total_required_credits)}</span>
-                <span>{formatCredits(row.progress_percentage)}%</span>
-                {row.result_json ? <button className="rounded-md bg-navy-800 px-3 py-2 font-semibold text-white" onClick={() => setLastAuditResult(row.result_json || null)}>載入結果</button> : null}
-              </div>
+              {selectedAuditId === row.id ? (
+                <div className="border-t border-slate-200 p-4">
+                  {detail.isLoading && !row.result_json ? <LoadingState label="載入審核結果" /> : null}
+                  {detail.error ? <ErrorState message={detail.error.message} /> : null}
+                  {selectedResult ? <AuditResultView result={selectedResult} studentProfile={studentProfile} /> : !detail.isLoading ? <EmptyState title="這筆紀錄沒有審核明細" /> : null}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>

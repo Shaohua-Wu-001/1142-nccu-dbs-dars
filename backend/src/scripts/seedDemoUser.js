@@ -17,7 +17,12 @@ async function main() {
     }
   });
   await student.update({ password_hash: studentHash, username: "demo001", role: "student" });
-  console.log("Demo student:", student.toJSON());
+  console.log("Demo student:", {
+    id: student.id,
+    student_number: student.student_number,
+    username: student.username,
+    role: student.role
+  });
 
   const adminHash = await bcrypt.hash("admin1234", 10);
   const [admin] = await User.findOrCreate({
@@ -32,7 +37,12 @@ async function main() {
     }
   });
   await admin.update({ password_hash: adminHash, username: "admin", role: "admin" });
-  console.log("Demo admin:", admin.toJSON());
+  console.log("Demo admin:", {
+    id: admin.id,
+    student_number: admin.student_number,
+    username: admin.username,
+    role: admin.role
+  });
 }
 
 main()

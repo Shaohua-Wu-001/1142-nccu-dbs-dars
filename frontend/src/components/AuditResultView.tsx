@@ -2,7 +2,7 @@ import { AlertTriangle, BookOpenCheck, CheckCircle2, ChevronDown, Clock3, FileWa
 import { useState, type ReactNode } from "react";
 import { formatCredits } from "../lib/status";
 import type { StudentAcademicProfile } from "../lib/transcriptProfile";
-import type { AuditGroup, AuditResult } from "../types/api";
+import type { AuditGroup, AuditResult, StudentCourse } from "../types/api";
 import { CreditProgressBar } from "./CreditProgressBar";
 import { StatusBadge } from "./StatusBadge";
 
@@ -76,11 +76,11 @@ function statusText(isComplete: boolean) {
   return isComplete ? "完成" : "未完成";
 }
 
-function StudentProfileItem({ label, value, emphasis = false }: { label: string; value?: string; emphasis?: boolean }) {
+function StudentProfileItem({ label, value }: { label: string; value?: string }) {
   return (
     <div className="rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm shadow-blue-950/5">
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">{label}</p>
-      <p className={`mt-2 font-bold ${emphasis ? "text-2xl text-navy-950" : "text-base text-navy-900"}`}>{value || "JSON 未提供"}</p>
+      <p className="mt-2 text-base font-bold text-navy-900">{value || "JSON 未提供"}</p>
     </div>
   );
 }
@@ -131,7 +131,7 @@ function StudentAcademicProfileCard({ profile }: { profile: StudentAcademicProfi
         </div>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <StudentProfileItem label="主修" value={profile.major} emphasis />
+        <StudentProfileItem label="主修" value={profile.major} />
         <StudentProfileItem label="雙主修" value={profile.doubleMajor} />
         <StudentProfileItem label="輔修" value={profile.minor} />
         <StudentProfileItem label="平均成績" value={profile.averageScore} />
@@ -473,7 +473,7 @@ function CompactRows({ rows, keys }: { rows: Array<Record<string, unknown>>; key
           <tr>{keys.map((key) => <th className="px-3 py-2" key={key}>{key}</th>)}</tr>
         </thead>
         <tbody className="divide-y divide-slate-100 bg-white">
-          {rows.slice(0, 8).map((row, index) => (
+          {rows.map((row, index) => (
             <tr key={index}>
               {keys.map((key) => <td className="px-3 py-2 text-slate-700" key={key}>{valueOf(row, key)}</td>)}
             </tr>
@@ -484,9 +484,75 @@ function CompactRows({ rows, keys }: { rows: Array<Record<string, unknown>>; key
   );
 }
 
+function courseTitle(course: Record<string, unknown>) {
+  return String(course.courseName || course.course_name || course.matchedCourseName || course.courseCode || "未命名課程");
+}
+
+function courseCode(course: Record<string, unknown>) {
+  return String(course.courseCode || course.course_code || course.matchedCourseCode || "—");
+}
+
+function courseCredits(course: Record<string, unknown>) {
+  return String(course.countedCredits || course.credits || course.requiredCredits || "0");
+}
+
+function CoursePillList({ courses }: { courses: Array<Record<string, unknown>> }) {
+  if (!courses.length) return <p className="text-sm font-semibold text-slate-400">目前沒有採計課程</p>;
+  return (
+    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+      {courses.map((course, index) => (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" key={`${courseCode(course)}-${courseTitle(course)}-${index}`}>
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-bold text-navy-950">{courseTitle(course)}</p>
+            <span className="shrink-0 rounded-md bg-white px-2 py-0.5 text-xs font-black text-navy-700">{formatCredits(courseCredits(course))} 學分</span>
+          </div>
+          <p className="mt-1 font-mono text-xs font-semibold text-slate-500">{courseCode(course)}</p>
+          {course.assignedBucket || course.category ? (
+            <p className="mt-1 text-xs font-semibold text-slate-500">{String(course.category || course.assignedBucket)}</p>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RequiredCompletedRules({ rows }: { rows: Array<Record<string, unknown>> }) {
+  if (!rows.length) return null;
+  return (
+    <div className="grid gap-2 md:grid-cols-2">
+      {rows.map((row, index) => {
+        const targetName = String(row.courseName || "必修課程");
+        const sourceName = String(row.matchedCourseName || row.matchedCourseCode || "採用課程");
+        const sourceCode = String(row.matchedCourseCode || "—");
+        const substitutedCode = String(row.substitutedForCourseCode || "");
+        const isSubstitution = row.recognitionType === "APPROVED_SUBSTITUTION";
+        return (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" key={`${targetName}-${sourceCode}-${index}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-bold text-navy-950">{targetName}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-600">
+                  {isSubstitution ? "抵免課程：" : "採計課程："}{sourceName}
+                </p>
+                <p className="mt-1 font-mono text-xs font-semibold text-slate-500">
+                  {sourceCode}{isSubstitution && substitutedCode ? ` → ${substitutedCode}` : ""}
+                </p>
+              </div>
+              <span className="shrink-0 rounded-md bg-white px-2 py-0.5 text-xs font-black text-navy-700">
+                {formatCredits(valueOf(row, "countedCredits"))} 學分
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function GroupPanel({ group }: { group: AuditGroup }) {
   const coreCourses = recordsOf(group.coreRequirement?.courses);
   const earnedDomains = Array.isArray(group.coreRequirement?.earnedDomains) ? group.coreRequirement.earnedDomains : [];
+  const groupCourses = recordsOf(group.courses);
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -510,7 +576,15 @@ function GroupPanel({ group }: { group: AuditGroup }) {
       {group.completedRules?.length ? (
         <div className="mt-4">
           <p className="mb-2 text-sm font-semibold text-slate-700">已完成規則</p>
-          <CompactRows rows={group.completedRules} keys={["courseName", "matchedCourseCode", "countedCredits", "recognitionType"]} />
+          {group.groupCode === "REQUIRED"
+            ? <RequiredCompletedRules rows={group.completedRules} />
+            : <CompactRows rows={group.completedRules} keys={["courseName", "matchedCourseCode", "countedCredits", "recognitionType"]} />}
+        </div>
+      ) : null}
+      {groupCourses.length && group.groupCode !== "GENERAL" ? (
+        <div className="mt-4">
+          <p className="mb-2 text-sm font-semibold text-navy-900">已採計課程</p>
+          <CoursePillList courses={groupCourses} />
         </div>
       ) : null}
       {group.requirements?.length ? (
@@ -524,6 +598,19 @@ function GroupPanel({ group }: { group: AuditGroup }) {
               <p className="mt-2 text-sm text-slate-500">
                 {formatCredits(item.earnedCredits)} / {displayCreditRequirement(item.minCredits, item.maxCredits)} 學分
               </p>
+              {recordsOf(item.courses).length ? (
+                <div className="mt-3 space-y-2">
+                  {recordsOf(item.courses).map((course, index) => (
+                    <div className="rounded-lg bg-slate-50 px-3 py-2" key={`${item.bucketCode}-${courseCode(course)}-${index}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-bold text-navy-950">{courseTitle(course)}</p>
+                        <span className="shrink-0 text-xs font-black text-navy-700">{formatCredits(courseCredits(course))} 學分</span>
+                      </div>
+                      <p className="mt-1 font-mono text-xs font-semibold text-slate-500">{courseCode(course)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
@@ -565,7 +652,51 @@ function GroupPanel({ group }: { group: AuditGroup }) {
   );
 }
 
-export function AuditResultView({ result, studentProfile }: { result: AuditResult; studentProfile?: StudentAcademicProfile | null }) {
+function PendingCoursesPanel({ courses }: { courses: StudentCourse[] }) {
+  if (courses.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <CheckCircle2 className="mb-3 h-10 w-10 text-emerald-400" />
+        <p className="font-semibold text-slate-700">沒有待確認課程</p>
+        <p className="mt-1 text-sm text-slate-400">所有課程均已完成分類</p>
+      </div>
+    );
+  }
+  return (
+    <section className="space-y-4">
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <p className="font-semibold">這些課程尚未完成分類，需要管理員人工確認</p>
+        <p className="mt-1 text-amber-700">請聯繫系辦或等待管理員透過「人工調整」頁面完成認列，審核完成後課程將歸入對應類別。</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-100 text-left text-xs font-semibold text-slate-400">
+              <th className="pb-2 pr-4">課程代碼</th>
+              <th className="pb-2 pr-4">課程名稱</th>
+              <th className="pb-2 pr-4">學分</th>
+              <th className="pb-2 pr-4">學年/學期</th>
+              <th className="pb-2">成績</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {courses.map((course) => (
+              <tr key={`${course.course_code}-${course.academic_year}-${course.semester}`} className="py-2">
+                <td className="py-2 pr-4 font-mono text-xs text-slate-500">{course.course_code}</td>
+                <td className="py-2 pr-4 font-medium text-slate-800">{course.course_name}</td>
+                <td className="py-2 pr-4 text-slate-600">{course.credits}</td>
+                <td className="py-2 pr-4 text-slate-500">{course.academic_year}/{course.semester}</td>
+                <td className="py-2 text-slate-600">{course.score ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+export function AuditResultView({ result, studentProfile, unresolvedCourses }: { result: AuditResult; studentProfile?: StudentAcademicProfile | null; unresolvedCourses?: StudentCourse[] }) {
   const [mode, setMode] = useState<"official" | "projected">("official");
   const active = mode === "projected" && result.projectedResult ? result.projectedResult : result;
   const requiredGroup = groupByCode(active, "REQUIRED");
@@ -573,6 +704,7 @@ export function AuditResultView({ result, studentProfile }: { result: AuditResul
   const electiveGroup = groupByCode(active, "ELECTIVE");
   const totalGroup = groupByCode(active, "TOTAL");
   const tabGroups = active.groups.filter((group) => ["REQUIRED", "GENERAL", "ELECTIVE", "PE", "TOTAL"].includes(group.groupCode));
+  const pendingCount = unresolvedCourses?.length ?? 0;
   const defaultTab = tabGroups.find((group) => group.groupCode === "GENERAL") || tabGroups[0] || null;
   const [selectedGroupCode, setSelectedGroupCode] = useState(defaultTab?.groupCode || "");
   const selectedGroup = tabGroups.find((group) => group.groupCode === selectedGroupCode) || defaultTab;
@@ -597,31 +729,35 @@ export function AuditResultView({ result, studentProfile }: { result: AuditResul
         <GraduationProgressPanel result={active} />
         <ActionRequiredPanel result={active} />
       </div>
-      {active.warnings.length ? (
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
-          <div className="mb-2 flex items-center gap-2 font-semibold text-amber-800">
-            <AlertTriangle className="h-4 w-4" />
-            系統提醒
-          </div>
-          <ul className="space-y-1 text-sm text-amber-800">
-            {active.warnings.map((warning) => <li key={warning}>{warning}</li>)}
-          </ul>
-        </div>
-      ) : null}
-      {tabGroups.length ? (
+      {tabGroups.length || unresolvedCourses ? (
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm shadow-blue-950/5">
           <div className="mb-4 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
             {tabGroups.map((group) => (
               <button
-                className={`rounded-xl px-4 py-2 text-sm font-bold transition ${selectedGroup?.groupCode === group.groupCode ? "bg-navy-900 text-white shadow-lg shadow-blue-950/20" : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-navy-900"}`}
+                className={`rounded-xl px-4 py-2 text-sm font-bold transition ${selectedGroupCode === group.groupCode ? "bg-navy-900 text-white shadow-lg shadow-blue-950/20" : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-navy-900"}`}
                 key={group.groupCode}
                 onClick={() => setSelectedGroupCode(group.groupCode)}
               >
                 {displayGroupName(group)}
               </button>
             ))}
+            {unresolvedCourses ? (
+              <button
+                className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold transition ${selectedGroupCode === "PENDING" ? "bg-amber-500 text-white shadow-lg shadow-amber-500/30" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`}
+                onClick={() => setSelectedGroupCode("PENDING")}
+              >
+                待確認
+                {pendingCount > 0 ? (
+                  <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${selectedGroupCode === "PENDING" ? "bg-white/20 text-white" : "bg-amber-200 text-amber-800"}`}>{pendingCount}</span>
+                ) : null}
+              </button>
+            ) : null}
           </div>
-          {selectedGroup ? <GroupPanel group={selectedGroup} /> : null}
+          {selectedGroupCode === "PENDING" && unresolvedCourses ? (
+            <PendingCoursesPanel courses={unresolvedCourses} />
+          ) : selectedGroup ? (
+            <GroupPanel group={selectedGroup} />
+          ) : null}
         </section>
       ) : null}
     </div>
