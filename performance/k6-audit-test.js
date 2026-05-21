@@ -42,7 +42,8 @@ const DEMO_ACCOUNT = __ENV.DEMO_ACCOUNT || "demo001";
 const DEMO_PASSWORD = __ENV.DEMO_PASSWORD || "demo1234";
 const K6_ACCOUNT = __ENV.K6_ACCOUNT || "k6demo";
 const K6_PASSWORD = __ENV.K6_PASSWORD || "k6demo1234";
-const transcript = JSON.parse(open("../backend/data/transcript.json"));
+const TRANSCRIPT_PATH = __ENV.TRANSCRIPT_PATH || "fixtures/transcript.sample.json";
+const transcript = JSON.parse(open(TRANSCRIPT_PATH));
 
 function login(account, password) {
   const response = http.post(
