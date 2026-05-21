@@ -98,6 +98,67 @@ backend/src/services/*
 Sequelize models
     ↓
 MySQL
+> **Security Notice.** The system uses JWT-based authentication and backend role/owner authorization for student transcript, audit, and admin APIs. Because this remains a course/demo deployment, please still avoid uploading real sensitive academic records unless the deployment environment, secrets, database access, and transport security have been reviewed.
+
+
+
+## Technology Stack
+
+```text
+Frontend:   React + Vite + TypeScript + Tailwind CSS
+Backend:    Node.js + Express + Sequelize
+Database:   MySQL
+Container:  Docker Compose
+```
+
+
+
+## Project Structure
+
+```text
+1142-nccu-database-systems/
+├── backend/                # Express API, Sequelize models, and audit engine
+│   ├── src/                # Backend source code
+│   ├── data/               # Course Excel files, required-course rules, and demo transcript JSON
+│   ├── Dockerfile          # Backend Docker / Railway deployment setup
+│   └── package.json
+├── frontend/               # React + Vite frontend application
+├── docs/                   # API docs, backend design, assumptions, and performance reports
+├── performance/            # k6 load testing scripts
+├── .env.example            # Docker Compose environment template
+├── docker-compose.yml      # Local Docker Compose setup: MySQL + backend
+├── .env.example            # Example environment variables for local Docker Compose
+├── requirement.txt         # System and functional requirements
+└── README.md
+```
+
+
+
+## Frontend–Backend Integration
+
+The frontend does not access the database directly.  
+All data operations are performed through backend API endpoints.
+
+```text
+User interaction
+    ↓
+React page / component
+    ↓
+frontend/src/api/hooks.ts
+    ↓
+frontend/src/api/client.ts
+    ↓
+HTTP API request
+    ↓
+backend/src/routes/*
+    ↓
+backend/src/controllers/*
+    ↓
+backend/src/services/*
+    ↓
+Sequelize models
+    ↓
+MySQL
 ```
 
 During local development, the frontend calls:
