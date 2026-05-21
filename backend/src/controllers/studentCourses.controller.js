@@ -28,7 +28,7 @@ async function listUnresolvedStudentCourses(req, res) {
   res.json({
     count: rows.length,
     rows,
-    note: "These transcript rows do not have course category data from data/courses.xlsx. Staff should review them before official use."
+    note: "These transcript rows do not have course category data from backend/data/courses.xlsx. Staff should review them before official use."
   });
 }
 
