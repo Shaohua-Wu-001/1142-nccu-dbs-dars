@@ -1,7 +1,7 @@
 import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { clsx } from "clsx";
-import { ArrowRight, BookOpen, ChevronDown, ClipboardCheck, Database, FileWarning, History, ListChecks, Route, Sparkles, UserCog, Users } from "lucide-react";
+import { ArrowRight, BookOpen, BookOpenCheck, ChevronDown, ClipboardCheck, Database, Dumbbell, FileWarning, GraduationCap, History, ListChecks, Route, Sparkles, UserCog, Users } from "lucide-react";
 import { useAdminStudents, useAuditHistory, useAuditHistoryDetail, useCourses, useCreateManualCourse, useDeleteManualCourse, useRequirements, useRunAudit, useStudentCourses, useUnresolvedCourses, useUpdateManualCourse } from "../api/hooks";
 import { AuditResultView } from "../components/AuditResultView";
 import { MetricTile } from "../components/MetricTile";
@@ -743,26 +743,53 @@ function groupPolicyText(groupCode: string) {
   return policies[groupCode] || [];
 }
 
-function PolicySummaryCard({ title, items, tone }: { title: string; items: string[]; tone: "navy" | "blue" | "green" | "amber" | "purple" }) {
-  const toneClass = {
-    navy: "border-navy-100 bg-navy-50/60 text-navy-950",
-    blue: "border-blue-100 bg-blue-50/70 text-blue-950",
-    green: "border-emerald-100 bg-emerald-50/70 text-emerald-950",
-    amber: "border-amber-100 bg-amber-50/70 text-amber-950",
-    purple: "border-violet-100 bg-violet-50/70 text-violet-950"
-  }[tone];
+function PolicySummaryCard({ title, items, icon }: { title: string; items: string[]; icon: ReactNode }) {
+  const cleanTitle = title.replace(/^[一二三四]、/, "");
 
   return (
-    <section className={`rounded-2xl border p-4 ${toneClass}`}>
-      <h3 className="font-serif text-lg font-bold">{title}</h3>
-      <ul className="mt-3 space-y-2 text-sm font-medium leading-6">
-        {items.map((item) => (
-          <li className="flex gap-2" key={item}>
-            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-45" />
+    <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-950/5">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-navy-800 text-white shadow-sm shadow-blue-950/15">
+          {icon}
+        </span>
+        <h3 className="text-base font-black text-navy-950">{cleanTitle}</h3>
+      </div>
+      <ul className="space-y-2.5 text-sm font-semibold leading-6 text-slate-600">
+        {items.map((item, index) => (
+          <li className="grid grid-cols-[0.5rem_1fr] gap-3" key={item}>
+            <span className={`mt-2 h-2 w-2 rounded-full ${index === 0 ? "bg-blue-500" : "bg-slate-300"}`} />
             <span>{item}</span>
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function RequirementOverview({ year }: { year: string }) {
+  const items = [
+    { label: "適用學年度", value: year, detail: "依學生入學年度套用", icon: <BookOpen className="h-4 w-4" /> },
+    { label: "畢業總學分", value: "128", detail: "系必修、通識、體育、選修加總", icon: <ClipboardCheck className="h-4 w-4" /> },
+    { label: "通識門檻", value: "28", detail: "含語文、一般與核心通識", icon: <ListChecks className="h-4 w-4" /> },
+    { label: "其他選修", value: "45", detail: "國防與選修體育各最多 4 學分", icon: <Route className="h-4 w-4" /> }
+  ];
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm shadow-blue-950/5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {items.map((item) => (
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4" key={item.label}>
+            <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-400">
+              <span className="rounded-lg bg-white p-2 text-navy-700 shadow-sm">{item.icon}</span>
+              {item.label}
+            </div>
+            <div className="flex items-end gap-2">
+              <p className="text-3xl font-black text-navy-950">{item.value}</p>
+              {item.label !== "適用學年度" ? <p className="pb-1 text-sm font-bold text-slate-500">學分</p> : <p className="pb-1 text-sm font-bold text-slate-500">學年度</p>}
+            </div>
+            <p className="mt-2 min-h-[2.5rem] text-sm font-semibold leading-5 text-slate-500">{item.detail}</p>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -819,65 +846,61 @@ function RulesTable({ rules }: { rules: RequirementRuleRow[] }) {
 export function AdminRequirementsPage() {
   const [year, setYear] = useState("111");
   const requirements = useRequirements(year);
-  const groups = (requirements.data?.groups || []) as RequirementGroupRow[];
+  const requiredGroup = ((requirements.data?.groups || []) as RequirementGroupRow[]).find((group) => group.group_code === "REQUIRED");
+  const requiredRules = requiredGroup?.RequirementRules || [];
+  const yearSelector = (
+    <label className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-2 shadow-sm shadow-blue-950/5">
+      <span className="text-xs font-black uppercase tracking-wider text-slate-400">年度</span>
+      <select
+        className="bg-transparent text-sm font-black text-navy-900 outline-none"
+        value={year}
+        onChange={(event) => setYear(event.target.value)}
+      >
+        <option value="111">111 學年度</option>
+        <option value="112">112 學年度</option>
+        <option value="113">113 學年度</option>
+        <option value="114">114 學年度</option>
+      </select>
+    </label>
+  );
   return (
     <div className="space-y-6">
-      <PageHeader title="畢業規則查詢" description="提供行政人員查閱各學年度畢業門檻、通識與選修採計原則，以及系必修可採認課號。" actions={<select className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold shadow-sm focus:border-blue-500 focus:outline-none" value={year} onChange={(event) => setYear(event.target.value)}><option value="111">111 學年度</option><option value="112">112 學年度</option><option value="113">113 學年度</option><option value="114">114 學年度</option></select>} />
+      <PageHeader title="畢業規則查詢" description="查閱各學年度畢業門檻、通識與選修採計原則，以及系必修可採認課號。" actions={yearSelector} />
       
       {requirements.isLoading ? <LoadingState /> : null}
       {requirements.error ? <ErrorState message={requirements.error.message} /> : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <PolicySummaryCard title="一、必修課程" tone="blue" items={groupPolicyText("REQUIRED")} />
-        <PolicySummaryCard title="二、通識課程與體育" tone="green" items={[...groupPolicyText("GENERAL"), ...groupPolicyText("PE")]} />
-        <PolicySummaryCard title="三、選修課程" tone="purple" items={groupPolicyText("ELECTIVE")} />
-        <PolicySummaryCard title="四、畢業總學分" tone="navy" items={groupPolicyText("TOTAL")} />
+      <RequirementOverview year={year} />
+
+      <div className="grid gap-4 xl:grid-cols-4">
+        <PolicySummaryCard title="必修課程" icon={<BookOpenCheck className="h-5 w-5" />} items={groupPolicyText("REQUIRED")} />
+        <PolicySummaryCard title="通識課程與體育" icon={<Dumbbell className="h-5 w-5" />} items={[...groupPolicyText("GENERAL"), ...groupPolicyText("PE")]} />
+        <PolicySummaryCard title="選修課程" icon={<BookOpen className="h-5 w-5" />} items={groupPolicyText("ELECTIVE")} />
+        <PolicySummaryCard title="畢業總學分" icon={<GraduationCap className="h-5 w-5" />} items={groupPolicyText("TOTAL")} />
       </div>
-      
-      <div className="space-y-6">
-        {groups.map((group) => {
-          const rules = group.RequirementRules || [];
-          const policyItems = groupPolicyText(group.group_code);
-          const shouldShowTable = rules.length > 0 && group.group_code === "REQUIRED";
-          return (
-            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:border-blue-200" key={String(group.id)}>
-              <div className="border-b border-slate-100 bg-slate-50/60 px-6 py-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <h3 className="font-serif text-lg font-bold text-navy-950">{String(group.group_name)}</h3>
-                    <p className="mt-1 text-sm font-bold text-slate-500">{formatGroupThreshold(group)}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-100 bg-white px-3 py-1.5 text-xs font-bold text-slate-500 shadow-sm">
-                    {rules.length ? `${rules.length} 項明細` : "固定政策檢核"}
-                  </div>
-                </div>
+
+      {requiredGroup ? (
+        <section className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm shadow-blue-950/5">
+          <div className="border-b border-slate-100 bg-slate-50/70 px-6 py-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-lg font-black text-navy-950">系必修可採認課號</h3>
+                <p className="mt-1 text-sm font-bold text-slate-500">{formatGroupThreshold(requiredGroup)}</p>
               </div>
-              
-              <div className="p-5">
-                {shouldShowTable ? (
-                  <RulesTable rules={rules} />
-                ) : policyItems.length ? (
-                  <div className="rounded-2xl border border-slate-100 bg-white p-4">
-                    <ul className="space-y-2 text-sm font-medium leading-6 text-slate-700">
-                      {policyItems.map((item) => (
-                        <li className="flex gap-2" key={item}>
-                          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-navy-300" />
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    {!rules.length ? <p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">此類規則由系統依固定政策自動檢核，沒有逐條課程明細。</p> : null}
-                  </div>
-                ) : (
-                  <div className="py-8 text-center">
-                    <p className="text-sm font-bold text-slate-400">此群組目前沒有可顯示的規則說明</p>
-                  </div>
-                )}
+              <div className="rounded-xl border border-slate-100 bg-white px-3 py-1.5 text-xs font-bold text-slate-500 shadow-sm">
+                {requiredRules.length ? `${requiredRules.length} 項明細` : "無明細"}
               </div>
-            </section>
-          );
-        })}
-      </div>
+            </div>
+          </div>
+          <div className="p-5">
+            {requiredRules.length ? (
+              <RulesTable rules={requiredRules} />
+            ) : (
+              <p className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-sm font-bold text-slate-500">此學年度目前沒有系必修明細。</p>
+            )}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

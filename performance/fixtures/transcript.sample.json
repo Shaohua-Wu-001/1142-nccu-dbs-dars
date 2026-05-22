@@ -1,0 +1,80 @@
+[
+  {
+    "課業學習": {
+      "aboutMe": {
+        "chineseName": "K6 Demo Student",
+        "studentNumber": "K6DEMO",
+        "registerMajor": "應用數學系"
+      },
+      "coursePlan": {
+        "coursePlanSchyy": "111",
+        "graduationCredit": "128"
+      },
+      "totalAverageScore": {
+        "rankingDepartment": "10 / 60",
+        "rankingClass": "8 / 50",
+        "departmentRankPercentage": "16.67 %",
+        "classRankPercentage": "16.00 %",
+        "averageScore": "86.50",
+        "totalCredits": "15"
+      },
+      "gradeRecordList": [
+        {
+          "AcademicYear": "111",
+          "GradeRecords": [
+            {
+              "academicYearSemester": "1111",
+              "academicYear": "111",
+              "semester": "1",
+              "courseCode": "701001001",
+              "courseName": "微積分",
+              "credit": "3.0",
+              "score": "88",
+              "requiredOrElectiveCourse": "必修"
+            },
+            {
+              "academicYearSemester": "1111",
+              "academicYear": "111",
+              "semester": "1",
+              "courseCode": "701002001",
+              "courseName": "線性代數",
+              "credit": "3.0",
+              "score": "85",
+              "requiredOrElectiveCourse": "必修"
+            },
+            {
+              "academicYearSemester": "1112",
+              "academicYear": "111",
+              "semester": "2",
+              "courseCode": "701003001",
+              "courseName": "普通物理",
+              "credit": "3.0",
+              "score": "82",
+              "requiredOrElectiveCourse": "必修"
+            },
+            {
+              "academicYearSemester": "1121",
+              "academicYear": "112",
+              "semester": "1",
+              "courseCode": "751001001",
+              "courseName": "程式設計",
+              "credit": "3.0",
+              "score": "90",
+              "requiredOrElectiveCourse": "選修"
+            },
+            {
+              "academicYearSemester": "1122",
+              "academicYear": "112",
+              "semester": "2",
+              "courseCode": "000000001",
+              "courseName": "通識課程示例",
+              "credit": "3.0",
+              "score": "87",
+              "requiredOrElectiveCourse": "選修"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

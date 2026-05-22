@@ -80,7 +80,7 @@ function StudentProfileItem({ label, value }: { label: string; value?: string })
   return (
     <div className="rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm shadow-blue-950/5">
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">{label}</p>
-      <p className="mt-2 text-base font-bold text-navy-900">{value || "JSON 未提供"}</p>
+      <p className="mt-2 min-h-[1.5rem] text-base font-bold text-navy-900">{value || ""}</p>
     </div>
   );
 }

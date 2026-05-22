@@ -1,1 +1,55 @@
-# 若是需要測試本系統，需要請你自己上 iNCCU 將自己成績單上傳。
+[
+  {
+    "課業學習": {
+      "aboutMe": {
+        "chineseName": "Demo Student",
+        "studentNumber": "DEMO001",
+        "registerMajor": "應用數學系",
+        "registerDoubleMajor": "",
+        "registerMinor": ""
+      },
+      "coursePlan": {
+        "coursePlanSchyy": "111",
+        "graduationCredit": "128"
+      },
+      "totalCredits": "6",
+      "totalAverageScore": {
+        "rankingDepartment": "1 / 1",
+        "rankingClass": "1 / 1",
+        "departmentRankPercentage": "100 %",
+        "classRankPercentage": "100 %",
+        "averageScore": "90.00",
+        "totalCredits": "6"
+      },
+      "gradeRecordList": [
+        {
+          "AcademicYear": "111",
+          "GradeRecords": [
+            {
+              "academicYearSemester": "1111",
+              "academicYear": "111",
+              "semester": "1",
+              "courseCode": "DEMO1001",
+              "courseName": "Demo Course I",
+              "credit": "3.0",
+              "requiredOrElectiveCourse": "選",
+              "score": "90.00",
+              "remark": ""
+            },
+            {
+              "academicYearSemester": "1112",
+              "academicYear": "111",
+              "semester": "2",
+              "courseCode": "DEMO1002",
+              "courseName": "Demo Course II",
+              "credit": "3.0",
+              "requiredOrElectiveCourse": "選",
+              "score": "95.00",
+              "remark": ""
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

@@ -82,7 +82,7 @@ Official audit results always use passed courses only. If `includeInProgress` is
 
 ## General Education Rules
 
-The backend imports `general_courses` from `data/courses.xlsx` and stores one version per academic year. The current source workbook has 517 general-course definitions, which become 2,068 SQL rows for years 111-114. This avoids assuming that one course code must always have the same general-education category across all years.
+The backend imports `general_courses` from `backend/data/courses.xlsx` and stores one version per academic year. The current source workbook has 517 general-course definitions, which become 2,068 SQL rows for years 111-114. This avoids assuming that one course code must always have the same general-education category across all years.
 
 The audit engine evaluates these NCCU general education constraints:
 

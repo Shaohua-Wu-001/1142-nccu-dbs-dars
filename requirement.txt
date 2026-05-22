@@ -329,9 +329,9 @@ localhost:3307 -> container:3306
 ## 十、主要資料來源
 
 ```text
-data/courses.xlsx
-data/required_courses.xlsx
-data/transcript.json
+backend/data/courses.xlsx
+backend/data/required_courses.xlsx
+backend/data/transcript.json
 ```
 
 用途：

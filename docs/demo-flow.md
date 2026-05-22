@@ -48,7 +48,7 @@ Expected:
 
 ## 2. Seed Excel Data
 
-Import `data/courses.xlsx`:
+Import `backend/data/courses.xlsx`:
 
 ```bash
 docker compose exec backend npm run seed
@@ -103,7 +103,7 @@ ADMIN_TOKEN=$(curl -s -X POST http://localhost:3001/api/auth/login \
 
 ## 3. Import Demo Transcript
 
-Import `data/transcript.json`:
+Import `backend/data/transcript.json`:
 
 ```bash
 docker compose exec backend npm run seed:transcript
@@ -126,7 +126,7 @@ curl "http://localhost:3001/api/student-courses/unresolved?userId=${DEMO_USER_ID
   -H "Authorization: Bearer $TOKEN"
 ```
 
-These are transcript rows that could not be matched to `data/courses.xlsx` and may need staff review.
+These are transcript rows that could not be matched to `backend/data/courses.xlsx` and may need staff review.
 
 ## 4. Inspect Curriculum Requirements
 

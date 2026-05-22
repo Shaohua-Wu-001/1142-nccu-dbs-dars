@@ -4,7 +4,7 @@
 2. The supported academic years are 111, 112, 113, and 114.
 3. The system uses JWT authentication and backend role/owner authorization. Seeded demo users are still provided for local demos and tests.
 4. Transcript input is NCCU JSON, not PDF.
-5. Required courses come from `data/courses.xlsx`, sheet `required_courses`.
+5. Required courses come from `backend/data/courses.xlsx`, sheet `required_courses`.
 6. Total graduation credits are 128, evaluated as 51 required + 4 PE + 28 general education + 45 other electives.
 7. Linear Algebra is 8 credits in academic years 111-112.
 8. Linear Algebra is 6 credits in academic years 113-114, with Mathematics Introduction contributing another 2 required credits.

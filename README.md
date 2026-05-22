@@ -179,6 +179,8 @@ These requests are then proxied by the Vite development server to:
 http://localhost:3001
 ```
 
+Set `VITE_API_BASE_URL` to an empty value when starting the frontend in tunnel mode; otherwise the browser will try to call `http://localhost:3001` from the remote viewer's machine instead of using the Vite proxy.
+
 
 
 ## System Workflow
@@ -430,7 +432,7 @@ curl http://localhost:3001/api/health
 
 ```bash
 cd frontend
-npm run dev -- --mode tunnel --host 0.0.0.0
+VITE_API_BASE_URL= npm run dev -- --mode tunnel --host 0.0.0.0
 ```
 
 
@@ -649,6 +651,20 @@ k6 run performance/k6-audit-test.js
 
 The k6 script logs in with seeded users before calling protected APIs and derives the required user ids from the login response. Defaults are `demo001` / `demo1234` for browsing and audit checks, and `k6demo` / `k6demo1234` for the full transcript-import flow.
 
+Before running the full transcript-import flow, create the dedicated k6 user:
+
+```bash
+docker compose exec backend npm run seed:k6-user
+```
+
+The full-flow scenario uses the fake transcript fixture at `performance/fixtures/transcript.sample.json`. To test another non-private fixture, override it with `TRANSCRIPT_PATH`:
+
+```bash
+TRANSCRIPT_PATH=fixtures/transcript.sample.json k6 run performance/k6-audit-test.js
+```
+
+`TRANSCRIPT_PATH` is resolved by k6 relative to `performance/k6-audit-test.js`.
+
 
 
 ## Command Reference
@@ -760,6 +776,8 @@ http://localhost:3001/api/...
 ```text
 http://localhost:3001
 ```
+
+以 tunnel 模式啟動前端時，請把 `VITE_API_BASE_URL` 設成空值；否則遠端瀏覽器會嘗試呼叫觀看者自己電腦上的 `http://localhost:3001`，而不是透過 Vite proxy。
 ## 系統流程圖
 
 本系統流程分成兩部分：
@@ -983,7 +1001,7 @@ curl http://localhost:3001/api/health
 
 ```bash
 cd frontend
-npm run dev -- --mode tunnel --host 0.0.0.0
+VITE_API_BASE_URL= npm run dev -- --mode tunnel --host 0.0.0.0
 ```
 
 ### 3. 啟動 Cloudflare Tunnel
@@ -1170,6 +1188,20 @@ k6 run performance/k6-audit-test.js
 ```
 
 k6 腳本會先登入 seeded users、從登入回應取得實際 user id，再呼叫 protected APIs。預設瀏覽與審核檢查使用 `demo001` / `demo1234`，完整匯入流程使用 `k6demo` / `k6demo1234`。
+
+執行完整匯入流程前，請先建立 k6 專用測試帳號：
+
+```bash
+docker compose exec backend npm run seed:k6-user
+```
+
+完整流程使用假的成績單測試資料 `performance/fixtures/transcript.sample.json`，不是私人 iNCCU 成績單。若要改用其他非私人測試檔，可用 `TRANSCRIPT_PATH` 覆蓋：
+
+```bash
+TRANSCRIPT_PATH=fixtures/transcript.sample.json k6 run performance/k6-audit-test.js
+```
+
+`TRANSCRIPT_PATH` 會由 k6 以 `performance/k6-audit-test.js` 所在資料夾為基準解析。
 
 ## 專案啟動指令總覽
 

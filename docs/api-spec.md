@@ -104,7 +104,7 @@ Response:
 
 ### GET `/api/courses`
 
-Lists imported course catalog rows from `data/courses.xlsx`.
+Lists imported course catalog rows from `backend/data/courses.xlsx`.
 
 Query parameters:
 
@@ -253,7 +253,7 @@ Requires the owner token or an admin token.
 
 ### GET `/api/student-courses/unresolved?userId=<studentUserId>`
 
-Lists imported courses that could not be matched back to `data/courses.xlsx` by academic year, semester, and course code.
+Lists imported courses that could not be matched back to `backend/data/courses.xlsx` by academic year, semester, and course code.
 
 These rows have missing `department` or `course_category` and should be reviewed before official use.
 
@@ -277,7 +277,7 @@ Response shape:
       "course_category": null
     }
   ],
-  "note": "These transcript rows could not be matched to data/courses.xlsx by academic year, semester, and course code. Staff should review them before official use."
+  "note": "These transcript rows could not be matched to backend/data/courses.xlsx by academic year, semester, and course code. Staff should review them before official use."
 }
 ```
 

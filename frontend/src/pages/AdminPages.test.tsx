@@ -200,10 +200,10 @@ describe("AdminRequirementsPage", () => {
     expect(screen.getAllByText("體育必修：需修滿 4 門").length).toBeGreaterThan(0);
     expect(screen.getAllByText("通識課程：總計 28 學分，超修部分不採計。").length).toBeGreaterThan(0);
     expect(screen.getAllByText("其他選修：需修滿 45 學分，國防課程與選修體育課程各最多採計 4 學分。").length).toBeGreaterThan(0);
-    expect(screen.getByText("最低門檻：0 學分 / 4 門")).toBeInTheDocument();
-    expect(screen.getByText("此類規則由系統依固定政策自動檢核，沒有逐條課程明細。")).toBeInTheDocument();
+    expect(screen.getByText("系必修可採認課號")).toBeInTheDocument();
     expect(screen.getByText("113-114 線性代數每學期採計上限為 3 學分。")).toBeInTheDocument();
-    expect(screen.getByText("0 學分")).toBeInTheDocument();
+    expect(screen.queryByText("最低門檻：0 學分 / 4 門")).not.toBeInTheDocument();
+    expect(screen.queryByText("此類規則由系統依固定政策自動檢核，沒有逐條課程明細。")).not.toBeInTheDocument();
     expect(screen.queryByText("GROUP: REQUIRED")).not.toBeInTheDocument();
     expect(screen.queryByText("ANY_OF")).not.toBeInTheDocument();
   });
